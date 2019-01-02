@@ -1,3 +1,5 @@
+;;;; Copyright (c) Frank James 2019 <frank.a.james@gmail.com>
+;;;; This code is licensed under the MIT license.
 
 (defpackage #:schannel/test
   (:use #:cl #:schannel))

@@ -2,9 +2,9 @@
 ;;;; This code is licensed under the MIT license.
 
 (asdf:defsystem :schannel
-  :name "schanne;"
+  :name "schannel"
   :author "Frank James <frank.a.james@gmail.com>"
-  :description "FFI wrapper to SChannel"
+  :description "CFFI wrapper to SChannel"
   :license "MIT"
   :serial t
   :components
