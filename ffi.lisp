@@ -335,7 +335,8 @@
   (hstore :pointer)
   (flags :uint32))
 (defun cert-close-store (hstore)
-  (%cert-close-store hstore 0))
+  (%cert-close-store hstore 0)
+  nil)
 
 ;; PCCERT_CONTEXT CertFindCertificateInStore(
 ;;   HCERTSTORE     hCertStore,
@@ -403,9 +404,6 @@
     (if b
 	nil
 	(error "Failed to add certificate to store"))))
-
-
-
 
 
 ;; typedef struct _SCHANNEL_CRED
@@ -524,7 +522,7 @@
   (hcred :pointer))
 
 (defun free-credentials-handle (hcred)
-  (with-foreign-object (p :pointer)
+  (with-foreign-object (p '(:struct sec-handle))
     (setf (mem-aref p '(:struct sec-handle)) hcred)
     (let ((sts (%free-credentials-handle p)))
       (unless (= sts 0) (win-error sts))
@@ -568,7 +566,7 @@
   ptr)
 
 
-;; ------------------ TODO ----------------------------------
+;; ------------------ context initializtion functions ---------------------
 
 
 (defconstant +default-isc-req-flags+
@@ -905,12 +903,6 @@
 	(t (win-error sts))))))
 
 
-
-
-
-
-
-
 ;; SECURITY_STATUS SEC_Entry QueryContextAttributes(
 ;;   _In_  PCtxtHandle phContext,
 ;;   _In_  ULONG       ulAttribute,
@@ -970,29 +962,6 @@
 (defcfun (%apply-control-token "ApplyControlToken" :convention :stdcall) :uint32
   (pcxt :pointer)
   (input :pointer))
-;; (defun apply-control-token (hcxt &key alert session-flags)
-;;   (with-foreign-objects ((phcxt '(:struct sec-handle))
-;; 			 (secbufdesc '(:struct sec-buffer-desc))
-;; 			 (secbuf '(:struct sec-buffer))
-;; 			 (pbuf :uint32 3))
-;;     (setf (mem-aref phcxt '(:struct sec-handle)) hcxt)
-;;     (init-sec-buffer-desc secbufdesc secbuf 1)
-;;     (cond
-;;       (alert
-;;        (init-sec-buffer secbuf 12 pbuf +secbuffer-token+)
-;;        (let ((alertv (find alert *alert-types* :key #'first)))
-;; 	 (unless alertv (error "Unknown alert type ~S expected one of ~S" alert (mapcar #'first *alert-types*)))
-;; 	 (setf (mem-aref pbuf :uint32 0) 2 ;; SCHANNEL_ALERT
-;; 	       (mem-aref pbuf :uint32 1) (third alertv) ;; TLS1_ALERT_FATAL or TLS1_ALERT_WARNING
-;; 	       (mem-aref pbuf :uint32 2) (second alertv))))
-;;        (session-flags
-;;        (init-sec-buffer secbuf 8 pbuf +secbuffer-token+)
-;;        (setf (mem-aref pbuf :uint32 0) 3 ;; SCHANNEL_SESSION
-;; 	     (mem-aref pbuf :uint32 1) session-flags))
-;;       (t (error "Must specify either alert or session-flags")))
-;;     (let ((sts (%apply-control-token phcxt secbufdesc)))
-;;       (unless (= sts 0) (win-error sts))
-;;       nil)))
        
 (defun apply-shutdown-token (hcxt)
   (with-foreign-objects ((secbufdesc '(:struct sec-buffer-desc))
@@ -1007,9 +976,6 @@
       (unless (= sts 0) (win-error sts))
       nil)))
     
-
-
-
 ;; SECURITY_STATUS SEC_Entry DecryptMessage(
 ;;   _In_    PCtxtHandle    phContext,
 ;;   _Inout_ PSecBufferDesc pMessage,
@@ -1085,9 +1051,6 @@ bend is buffer end index and extra-start is starting index of first extra byte."
 	   (values nil nil t))
 	  (t (win-error sts)))))))
 	   
-
-      
-
 ;; SECURITY_STATUS SEC_Entry EncryptMessage(
 ;;   _In_    PCtxtHandle    phContext,
 ;;   _In_    ULONG          fQOP,
@@ -1162,6 +1125,5 @@ bend is buffer end index and extra-start is starting index of first extra byte."
     (let ((sts (%delete-security-context pcxt)))
       (unless (= sts 0) (win-error sts))))
   nil)
-
 
 
