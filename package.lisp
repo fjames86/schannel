@@ -25,6 +25,9 @@
 	   #:with-client-context
 	   #:with-server-context	   
 
+	   ;; other functions
+	   #:query-stream-sizes
+	   
 	   ;; certificate functions 
 	   #:create-certificate-context
 	   #:create-self-signed-certificate 
