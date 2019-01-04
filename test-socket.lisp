@@ -2,7 +2,10 @@
 ;;;; This code is licensed under the MIT license.
 
 (defpackage #:schannel/test
-  (:use #:cl #:schannel))
+  (:use #:cl #:schannel)
+  (:export #:test-client-socket
+	   #:test-server-socket))
+   
 
 (in-package #:schannel/test)
 
@@ -69,6 +72,14 @@ Host: ~A
       (setf done t))))
 
 (defun test-client-socket (&key (hostname "www.example.com") (port 443) ignore-certificates-p)
+  "Test talking to a TLS server. Sets up the connection contexts then 
+ends an HTTP request, reading only the first TLS message that is received.
+The server may send more, but this function will not receive them.
+
+HOSTNAME ::= DNS hostname of server to connect to. Name resolved using the function dragons:get-host-by-name. 
+PORT ::= server TCP port to connect.
+IGNORE-CERTIFICATES-P ::= if true, sets flags to ignore certificate validation errors. This can be useful if the server uses a certificate not signed by a trusted root authority.
+"
   (with-client-context (cxt hostname :ignore-certificates-p ignore-certificates-p)
     (fsocket:with-tcp-connection (fd (fsocket:sockaddr-in (first (dns:get-host-by-name hostname)) port))
       (setf (fsocket:socket-option fd :socket :rcvtimeo) 1000)
@@ -150,6 +161,8 @@ Host: ~A
 
 
 (defun test-server-socket (&optional (port 8000))
+  "Run a test TLS server. Listens on TCP port awaiting a single incoming connection. Sets up the context and receives the first TLS message. Replies with the 
+same content, so acts as an echo server." 
   (fsocket:with-tcp-socket (fd port)
     (setf (fsocket:socket-option fd :socket :rcvtimeo) 1000)
 
