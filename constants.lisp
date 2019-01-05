@@ -63,6 +63,7 @@
 (defconstant +incomplete-message+ #x80090318) ;; SEC_I_INCOMPLETE_MESSAGE 
 (defconstant +context-expired+ #x00090317) ;; SEC_I_CONTEXT_EXPIRED 
 (defconstant +invalid-token+ #x80090308) ;; SEC_E_INVALID_TOKEN
+(defconstant +renegotiate+ #x00090321) ;; SEC_I_RENEGOTIATE 
 
 (defconstant +ISC-REQ-DELEGATE+                #x00000001)
 (defconstant +ISC-REQ-MUTUAL-AUTH+             #x00000002)
