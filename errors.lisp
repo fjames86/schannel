@@ -33,10 +33,13 @@
   ())
 (define-condition schannel-incomplete-message (win-error)
   ())
+(define-condition schannel-renegotiate (win-error)
+  ())
 
 (defun win-error (code)
   (error (cond
 	   ((= code +context-expired+) 'schannel-context-expired)
 	   ((= code +incomplete-message+) 'schannel-incomplete-message)
+	   ((= code +renegotiate+) 'schannel-renegotiate)
 	   (t 'win-error))
 	 :code code))

@@ -12,7 +12,7 @@
 (defclass schannel-stream (trivial-gray-streams:trivial-gray-stream-mixin
 			   trivial-gray-streams:fundamental-binary-input-stream
 			   trivial-gray-streams:fundamental-binary-output-stream)
-  ((cxt :accessor stream-cxt :initform nil)
+  ((cxt :accessor stream-cxt :initarg :cxt)
    (base-stream :initarg :stream :accessor stream-base-stream)
    (rbuf :initform (make-array 16384 :element-type '(unsigned-byte 8)) :accessor stream-rbuf)
    (rbuf-pt-end :initform 0 :accessor rbuf-pt-end)
@@ -21,7 +21,7 @@
    (sbuf :initform (make-array 16384 :element-type '(unsigned-byte 8)) :accessor stream-sbuf)
    (sbuf-ct-end :initform 0 :accessor sbuf-ct-end)))
    
-(defmethod trivial-gray-streams:stream-element-type ((stream schannel-stream))
+(defmethod stream-element-type ((stream schannel-stream))
   '(unsigned-byte 8))
 
 (defmethod trivial-gray-streams:stream-listen ((stream schannel-stream))
@@ -38,7 +38,7 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	 (done nil))
 	(done)
       (let ((n (read-sequence rbuf base-stream :start offset)))
-	(multiple-value-bind (end extra-bytes incomplete-p) (decrypt-message cxt rbuf :end n)
+	(multiple-value-bind (end extra-bytes incomplete-p) (schannel:decrypt-message cxt rbuf :end n)
 	  (cond
 	    (incomplete-p
 	     (setf offset n))
@@ -90,24 +90,44 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	;; to worry about force-output/finish-output 
 	(write-sequence sbuf base-stream :end bend))))
   seq)
-  
-  
 
-
-
-
-
-
-
-
+(defmethod close ((stream schannel-stream) &key abort)
+  (declare (ignore abort))
+  (schannel:free-schannel-context (stream-cxt stream)))
 
 (defclass client-stream (schannel-stream)
   ())
+
+(defun make-client-stream (base-stream hostname &key ignore-certificates-p)
+  (let ((cxt (schannel:make-client-context
+				     hostname
+				     :ignore-certificates-p ignore-certificates-p)))
+    (handler-bind ((error (lambda (e)
+			    (declare (ignore e))
+			    (schannel:free-schannel-context cxt))))
+
+
+      ;; setup context
+      ;; TODO 
+      
+      ;; return instance 
+      (make-instance 'client-stream :stream base-stream :cxt cxt))))
 
 (defclass server-stream (schannel-stream)
   ())
 
 
+(defun make-server-stream (base-stream &key hcert)
+  (let ((cxt (schannel:make-server-context :hcert hcert)))
+    (handler-bind ((error (lambda (e)
+			    (declare (ignore e))
+			    (schannel:free-schannel-context cxt))))
+      ;; setup context
+      ;; TODO
+      
+      ;; return
+      (make-instance 'server-stream :stream base-stream :cxt cxt))))
+				     
 
 
 
