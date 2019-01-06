@@ -1046,8 +1046,7 @@ bend is buffer end index and extra-start is starting index of first extra byte."
 						     'cbuffer)))))))
 	   
 	   (values bend extra-start nil))
-	  ((or (= sts +incomplete-message+)
-	       #+nil(= sts +invalid-token+))
+	  ((or (= sts +incomplete-message+) #+nil(= sts +invalid-token+))
 	   (values nil nil t))
 	  (t (win-error sts)))))))
 	   

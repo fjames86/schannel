@@ -15,6 +15,7 @@
 	   ;; class functions 
 	   #:free-schannel-context
 	   #:make-client-context
+	   #:client-context-hostname 
 	   #:make-server-context 
 	   #:encrypt-message 
 	   #:decrypt-message 

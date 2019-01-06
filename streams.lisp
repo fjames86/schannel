@@ -1,6 +1,7 @@
 
 (defpackage #:schannel-streams
-  (:use #:cl))
+  (:use #:cl)
+  (:export #:make-client-stream))
 
 (in-package #:schannel-streams)
 
@@ -106,8 +107,50 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 
 (defclass client-stream (schannel-stream)
   ())
+(defmethod print-object ((cs client-stream) stream)
+  (print-unreadable-object (cs stream :type t)
+    (format stream ":HOSTNAME ~S"
+	    (let ((cxt (stream-cxt cs)))
+	      (when cxt (schannel:client-context-hostname cxt))))))
 
-
+(defun init-client-stream (cxt base-stream)
+  ;; start by generating the first token
+  (let ((tok (schannel:initialize-client-context cxt)))
+    (write-sequence tok base-stream)
+    (force-output base-stream))
+  
+  (do ((offset 0)
+       (buf (make-array (* 16 1024) :element-type '(unsigned-byte 8)))
+       (done nil))
+      (done)
+    (format t ";; offset=~A~%" offset)
+    (let ((n (read-sequence buf base-stream :start offset)))
+      (format t ";; new offset=~A~%" n)
+      (setf offset n))
+    (multiple-value-bind (token extra-bytes incomplete-p)
+	(schannel:initialize-client-context cxt buf 0 offset)
+      (cond
+	(incomplete-p
+	 ;; recv token incomplete - need more bytes
+	 nil)
+	(t
+	 ;; token complete and was processed	 
+	 (when (arrayp token)
+	   ;; generated output token, send it 
+	   (write-sequence token base-stream)
+	   (force-output base-stream))
+	 
+	 (cond
+	   (extra-bytes
+	    ;; received extra bytes, memmove and update offsets 
+	    (dotimes (i extra-bytes)
+	      (setf (aref buf i) (aref buf (+ (- offset extra-bytes) i))))
+	    (setf offset extra-bytes))
+	   (t
+	    (setf offset 0)))
+	 (when (eq token t)
+	   ;; token=t implies context complete
+	   (setf done t)))))))
 
 (defun make-client-stream (base-stream hostname &key ignore-certificates-p)
   (let ((cxt (schannel:make-client-context
@@ -119,7 +162,7 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 
 
       ;; setup context
-      ;; TODO 
+      (init-client-stream cxt base-stream)
       
       ;; return instance 
       (make-instance 'client-stream :stream base-stream :cxt cxt))))
