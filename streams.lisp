@@ -71,6 +71,12 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	 (read-next-msg stream)
 	 (read-plaintext))))))
 
+;;; TODO:
+;;; 1. buffer unwritten plaintext in sbuf. when buffer full or force-output is called
+;;; we should then encrypt and send it. 
+;;; This would allow us to support write-byte etc 
+
+
 
 (defmethod trivial-gray-streams:stream-write-sequence ((stream schannel-stream) seq start end &key)
   ;; copy into send buffer and encrypt.
@@ -93,10 +99,15 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 
 (defmethod close ((stream schannel-stream) &key abort)
   (declare (ignore abort))
+  ;; TODO: initiate a TLS socket shutdown. this requires exchanging messages (close notify)  
   (schannel:free-schannel-context (stream-cxt stream)))
+
+
 
 (defclass client-stream (schannel-stream)
   ())
+
+
 
 (defun make-client-stream (base-stream hostname &key ignore-certificates-p)
   (let ((cxt (schannel:make-client-context
@@ -112,6 +123,8 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
       
       ;; return instance 
       (make-instance 'client-stream :stream base-stream :cxt cxt))))
+
+
 
 (defclass server-stream (schannel-stream)
   ())

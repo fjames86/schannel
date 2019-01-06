@@ -13,6 +13,6 @@
    (:file "errors")
    (:file "ffi")
    (:file "classes"))
-  :depends-on (:cffi))
+  :depends-on (:cffi :trivial-gray-streams))
 
 
