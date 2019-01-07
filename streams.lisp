@@ -45,7 +45,7 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	     (setf offset n))
 	    (t
 	     (setf rbuf-pt-end end
-		   rbuf-ct-start (- n extra-bytes)
+		   rbuf-ct-start (- n (or extra-bytes 0))
 		   rbuf-ct-end n
 		   done t))))))))
 
@@ -132,24 +132,29 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
       (cond
 	(incomplete-p
 	 ;; recv token incomplete - need more bytes
+	 (format t ";; token incomplete offset=~A~%" offset)
 	 nil)
 	(t
-	 ;; token complete and was processed	 
+	 ;; token complete and was processed
+	 (format t ";; token=~S extra-bytes=~S incomplete-p=~S~%" token extra-bytes incomplete-p)
 	 (when (arrayp token)
-	   ;; generated output token, send it 
+	   ;; generated output token, send it
+	   (format t ";; sending token length=~A~%" (length token))
 	   (write-sequence token base-stream)
 	   (force-output base-stream))
 	 
 	 (cond
 	   (extra-bytes
-	    ;; received extra bytes, memmove and update offsets 
+	    ;; received extra bytes, memmove and update offsets
+	    (format t ";; extra bytes=~A~%" extra-bytes)
 	    (dotimes (i extra-bytes)
 	      (setf (aref buf i) (aref buf (+ (- offset extra-bytes) i))))
 	    (setf offset extra-bytes))
 	   (t
 	    (setf offset 0)))
-	 (when (eq token t)
+	 (when (eq token nil)
 	   ;; token=t implies context complete
+	   (format t ";; init done~%")
 	   (setf done t)))))))
 
 (defun make-client-stream (base-stream hostname &key ignore-certificates-p)
