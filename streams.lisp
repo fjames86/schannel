@@ -15,11 +15,12 @@
 			   trivial-gray-streams:fundamental-binary-output-stream)
   ((cxt :accessor stream-cxt :initarg :cxt)
    (base-stream :initarg :stream :accessor stream-base-stream)
-   (rbuf :initform (make-array 16384 :element-type '(unsigned-byte 8)) :accessor stream-rbuf)
+   (rbuf :initform (make-array (* 32 1024) :element-type '(unsigned-byte 8)) :accessor stream-rbuf)
+   (rbuf-pt-start :initform 0 :accessor rbuf-pt-start)
    (rbuf-pt-end :initform 0 :accessor rbuf-pt-end)
    (rbuf-ct-start :initform 0 :accessor rbuf-ct-start)
    (rbuf-ct-end :initform 0 :accessor rbuf-ct-end)
-   (sbuf :initform (make-array 16384 :element-type '(unsigned-byte 8)) :accessor stream-sbuf)
+   (sbuf :initform (make-array (* 32 1024) :element-type '(unsigned-byte 8)) :accessor stream-sbuf)
    (sbuf-ct-end :initform 0 :accessor sbuf-ct-end)))
    
 (defmethod stream-element-type ((stream schannel-stream))
@@ -31,44 +32,62 @@
 (defun read-next-msg (stream)
   "Read from the base stream until we have at least enough bytes to decrypt a message. Updates
 offets to point to end of plaintext and remaining undecrypted bytes from next message." 
-  (with-slots (cxt base-stream rbuf rbuf-pt-end rbuf-ct-start rbuf-ct-end) stream
-    (assert (= rbuf-pt-end 0))
-    (assert (= rbuf-ct-start 0))
+  (with-slots (cxt base-stream rbuf rbuf-pt-start rbuf-pt-end rbuf-ct-start rbuf-ct-end) stream
+    (assert (= rbuf-pt-start rbuf-pt-end))
+
+    ;; memmove the extra ciphertext up to offset 0
+    (when (> rbuf-ct-start 0)
+      (format t ";; memmove extra cipher text start=~A end=~A~%" rbuf-ct-start rbuf-ct-end)
+      (dotimes (i (- rbuf-ct-end rbuf-ct-start))
+	(setf (aref rbuf i) (aref rbuf (+ rbuf-ct-start i))))
+      (setf rbuf-ct-end (- rbuf-ct-end rbuf-ct-start)
+	    rbuf-ct-start 0))
     
     (do ((offset rbuf-ct-end)
+	 (first-loop-p t nil)
 	 (done nil))
 	(done)
-      (let ((n (read-sequence rbuf base-stream :start offset)))
-	(multiple-value-bind (end extra-bytes incomplete-p) (schannel:decrypt-message cxt rbuf :end n)
+      (let ((n (if (and (> rbuf-ct-end 0) first-loop-p)
+		   rbuf-ct-end
+		   (progn (format t ";; reading from base stream first-loop-p=~A ct-end=~A~%" first-loop-p rbuf-ct-end)
+			  (read-sequence rbuf base-stream :start offset)))))
+	(format t ";; decrypt count=~A~%" n)
+	(multiple-value-bind (end extra-start incomplete-p) (schannel:decrypt-message cxt rbuf :end n)
 	  (cond
 	    (incomplete-p
+	     (format t ";; message INCOMPLETE, continuing to read~%")
 	     (setf offset n))
 	    (t
-	     (setf rbuf-pt-end end
-		   rbuf-ct-start (- n (or extra-bytes 0))
-		   rbuf-ct-end n
-		   done t))))))))
+	     (format t ";; message complete n=~A end=~A extra-start=~A~%" n end extra-start)
+	     (setf rbuf-pt-start 0
+		   rbuf-pt-end end
+		   rbuf-ct-start (or extra-start 0)
+		   rbuf-ct-end (if extra-start n 0)
+		   done t)
+	     (format t ";; message complete pt-end=~A ct-start=~A ct-end=~A~%"
+		     rbuf-pt-end rbuf-ct-start rbuf-ct-end)
+
+
+	     )))))))
 
 
 (defmethod trivial-gray-streams:stream-read-sequence ((stream schannel-stream) seq start end &key)
-  (with-slots (cxt rbuf rbuf-pt-end rbuf-ct-start rbuf-ct-end) stream
+  (with-slots (cxt rbuf rbuf-pt-start rbuf-pt-end rbuf-ct-start rbuf-ct-end) stream
     (flet ((read-plaintext ()
-	     (let ((count (min (- end start) rbuf-pt-end)))
-	       ;; copy into output buffer 
+	     (let ((count (min (- end start) (- rbuf-pt-end rbuf-pt-start))))
+	       ;; copy into output buffer
+	       (format t ";; read plaintext count=~A~%" count)
 	       (dotimes (i count)
-		 (setf (aref seq (+ start i)) (aref rbuf i)))
-	       ;; memmove and update offsets 
-	       (replace rbuf rbuf
-			:start1 0 :start2 (- rbuf-pt-end count) 
-			:end1 (- rbuf-pt-end count) :end2 rbuf-pt-end)
-	       (setf rbuf-pt-end (- rbuf-pt-end count))
+		 (setf (aref seq (+ start i)) (aref rbuf (+ rbuf-pt-start i))))
+	       ;; update offsets 
+	       (incf rbuf-pt-start count)
 	       (+ start count))))
       ;; there is remaining plaintext, read that out first
       (cond
-	((> rbuf-pt-end 0)
+	((not (= rbuf-pt-start rbuf-pt-end))
 	 (read-plaintext))
 	(t 
-	 ;; ok no plaintext left, lets read the next message
+	 ;; ok no plaintext left, lets read the next message	 
 	 (read-next-msg stream)
 	 (read-plaintext))))))
 
