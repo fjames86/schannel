@@ -91,10 +91,12 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	 (read-next-msg stream)
 	 (read-plaintext))))))
 
-;;; TODO:
-;;; 1. buffer unwritten plaintext in sbuf. when buffer full or force-output is called
-;;; we should then encrypt and send it. 
-;;; This would allow us to support write-byte etc 
+(defmethod trivial-gray-streams:stream-read-byte ((stream schannel-stream))
+  (let ((buf (make-array 1 :element-type '(unsigned-byte 8))))
+    (trivial-gray-streams:stream-read-sequence stream buf 0 1)
+    (aref buf 0)))
+
+
 
 
 
@@ -116,6 +118,12 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	;; to worry about force-output/finish-output 
 	(write-sequence sbuf base-stream :end bend))))
   seq)
+
+(defmethod trivial-gray-streams:stream-write-byte ((stream schannel-stream) integer)
+  (let ((buf (make-array 1 :element-type '(unsigned-byte 8) :initial-element integer)))
+    (trivial-gray-streams:stream-write-sequence stream buf 0 1)
+    integer))
+
 
 (defmethod close ((stream schannel-stream) &key abort)
   (declare (ignore abort))
