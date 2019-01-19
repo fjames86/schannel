@@ -12,7 +12,22 @@ Host: ~A
 ")
 
 ;; This doesn't work.
-;; Q: why doesn't usocket work? 
+;; Q: why doesn't usocket work?
+;; A: we now understand: it is due to the semantics of read-sequence.
+;; If one calls n=recv(fd,buf,count), n may be <= count i.e. recv may
+;; return a short read. This is fine and is a normal part of how
+;; bsd-sockets/TCP work.
+;; However Lisp's (read-sequence seq stream) API demands the specified
+;; region of buf (bounded by start,end) be filled completely 
+;; i.e. read-sequence should block until more bytes are available.
+;; read-sequence may only return a short read in the case of EOF
+;; i.e. either a graceful close (recv returns 0) or some error (ECONNRESET).
+;; This poses a major problem for us: the schannel APIs take input sequences
+;; of unknown length and we must keep reading until enough bytes have been read.
+;; i.e. We cannot ever know ahead of time how many bytes to read from the
+;; base TCP stream. Reading 1 byte at a time (read-byte) is not an option. 
+;; Why is this so hard? 
+
 (defun test-usocket (hostname &key (port 443) ignore-certificates-p)
   (usocket:with-client-socket (fd base-stream hostname port :element-type '(unsigned-byte 8))
     (with-open-stream (stream
@@ -28,7 +43,8 @@ Host: ~A
 	      (done nil))
 	     (done)
 	   (handler-case (let ((n (read-sequence buf stream)))
-			   (write-sequence buf s :end n))
+			   (write-sequence buf s :end n)
+			   (finish-output base-stream))
 	     (error (e)
 	       (format t ";; ERROR: ~A~%" e)
 	       (setf done t)))))

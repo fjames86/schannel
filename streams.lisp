@@ -116,7 +116,8 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	;; write all of it to the base stream. this means
 	;; we don't buffer unwritten content so that we don't need
 	;; to worry about force-output/finish-output 
-	(write-sequence sbuf base-stream :end bend))))
+	(write-sequence sbuf base-stream :end bend)
+	(finish-output base-stream))))
   seq)
 
 (defmethod trivial-gray-streams:stream-write-byte ((stream schannel-stream) integer)
@@ -144,7 +145,7 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
   ;; start by generating the first token
   (let ((tok (schannel:initialize-client-context cxt)))
     (write-sequence tok base-stream)
-    (force-output base-stream))
+    (finish-output base-stream))
   
   (do ((offset 0)
        (buf (make-array (* 16 1024) :element-type '(unsigned-byte 8)))
@@ -168,7 +169,7 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	   ;; generated output token, send it
 	   (format t ";; sending token length=~A~%" (length token))
 	   (write-sequence token base-stream)
-	   (force-output base-stream))
+	   (finish-output base-stream))
 	 
 	 (cond
 	   (extra-bytes
