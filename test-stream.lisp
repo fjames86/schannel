@@ -31,7 +31,7 @@ Host: ~A
 (defun test-usocket (hostname &key (port 443) ignore-certificates-p)
   (usocket:with-client-socket (fd base-stream hostname port :element-type '(unsigned-byte 8))
     (with-open-stream (stream
-		       (schannel-streams:make-client-stream base-stream hostname
+		       (schannel:make-client-stream base-stream hostname
 							    :ignore-certificates-p ignore-certificates-p))
       (format t ";; sending data...")
       (write-sequence (babel:string-to-octets (format nil *http-request* hostname)) stream)
@@ -54,23 +54,31 @@ Host: ~A
 
 ;; This works
 (defun test-fsocket (hostname &key (port 443) ignore-certificates-p)
-  (let ((addr (fsocket:sockaddr-in (first (dns:get-host-by-name hostname)) port)))
+  (let ((addr (fsocket:sockaddr-in (first (dns:get-host-by-name hostname)) port))
+	(buf (make-array 4096 :element-type '(unsigned-byte 8))))
     (fsocket:with-tcp-connection (fd addr)
       (setf (fsocket:socket-option fd :socket :rcvtimeo) 1000)
       (let ((base-stream (fsocket::make-tcp-stream fd)))
 	(with-open-stream (stream
-			   (schannel-streams:make-client-stream base-stream hostname
+			   (schannel:make-client-stream base-stream hostname
 								:ignore-certificates-p ignore-certificates-p))
 	  (format t ";; sending data...")
 	  (write-sequence (babel:string-to-octets (format nil *http-request* hostname)) stream)
 	  (babel:octets-to-string 
 	   (flexi-streams:with-output-to-sequence (s)
-	     (do ((buf (make-array 1024 :element-type '(unsigned-byte 8)))
-		  (done nil))
+	     (do ((done nil))
 		 (done)
+	       ;; XXX: this only works because fsocket:tcp-stream returns short
+	       ;; reads for read-sequence. This is technically not conforming
+	       ;; because read-sequence should only return short reads on EOF.
+	       ;; usocket, for instance, will block if recv() returns a short read.
 	       (handler-case (let ((n (read-sequence buf stream)))
 			       (write-sequence buf s :end n))
 		 (error (e)
+		   ;; We terminate the loop on a RCVTIMEO error status.
+		   ;; In proper http client implementations this wouldn't be needed
+		   ;; because it would first parse the http header to get the conent
+		   ;; length, then it would know how much plaintext to read.
 		   (format t ";; ERROR: ~A~%" e)
 		   (setf done t)))))
 	   :errorp nil))))))

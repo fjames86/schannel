@@ -1,9 +1,5 @@
 
-(defpackage #:schannel-streams
-  (:use #:cl)
-  (:export #:make-client-stream))
-
-(in-package #:schannel-streams)
+(in-package #:schannel)
 
 ;;; We need to buffer two things: plaintext that we have decrypted but the user hasn't yet read
 ;;; and ciphertext from the next message that we haven't yet decrypted 
@@ -37,7 +33,7 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 
     ;; memmove the extra ciphertext up to offset 0
     (when (> rbuf-ct-start 0)
-      (format t ";; memmove extra cipher text start=~A end=~A~%" rbuf-ct-start rbuf-ct-end)
+;;      (format t ";; memmove extra cipher text start=~A end=~A~%" rbuf-ct-start rbuf-ct-end)
       (dotimes (i (- rbuf-ct-end rbuf-ct-start))
 	(setf (aref rbuf i) (aref rbuf (+ rbuf-ct-start i))))
       (setf rbuf-ct-end (- rbuf-ct-end rbuf-ct-start)
@@ -49,23 +45,23 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	(done)
       (let ((n (if (and (> rbuf-ct-end 0) first-loop-p)
 		   rbuf-ct-end
-		   (progn (format t ";; reading from base stream first-loop-p=~A ct-end=~A~%" first-loop-p rbuf-ct-end)
+		   (progn ;;(format t ";; reading from base stream first-loop-p=~A ct-end=~A~%" first-loop-p rbuf-ct-end)
 			  (read-sequence rbuf base-stream :start offset)))))
-	(format t ";; decrypt count=~A~%" n)
+;;	(format t ";; decrypt count=~A~%" n)
 	(multiple-value-bind (end extra-start incomplete-p) (schannel:decrypt-message cxt rbuf :end n)
 	  (cond
 	    (incomplete-p
-	     (format t ";; message INCOMPLETE, continuing to read~%")
+;;	     (format t ";; message INCOMPLETE, continuing to read~%")
 	     (setf offset n))
 	    (t
-	     (format t ";; message complete n=~A end=~A extra-start=~A~%" n end extra-start)
+;;	     (format t ";; message complete n=~A end=~A extra-start=~A~%" n end extra-start)
 	     (setf rbuf-pt-start 0
 		   rbuf-pt-end end
 		   rbuf-ct-start (or extra-start 0)
 		   rbuf-ct-end (if extra-start n 0)
 		   done t)
-	     (format t ";; message complete pt-end=~A ct-start=~A ct-end=~A~%"
-		     rbuf-pt-end rbuf-ct-start rbuf-ct-end)
+;;	     (format t ";; message complete pt-end=~A ct-start=~A ct-end=~A~%"
+;;		     rbuf-pt-end rbuf-ct-start rbuf-ct-end)
 
 
 	     )))))))
@@ -76,7 +72,7 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
     (flet ((read-plaintext ()
 	     (let ((count (min (- end start) (- rbuf-pt-end rbuf-pt-start))))
 	       ;; copy into output buffer
-	       (format t ";; read plaintext count=~A~%" count)
+;;	       (format t ";; read plaintext count=~A~%" count)
 	       (dotimes (i count)
 		 (setf (aref seq (+ start i)) (aref rbuf (+ rbuf-pt-start i))))
 	       ;; update offsets 
@@ -151,9 +147,9 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
        (buf (make-array (* 16 1024) :element-type '(unsigned-byte 8)))
        (done nil))
       (done)
-    (format t ";; offset=~A~%" offset)
+;;    (format t ";; offset=~A~%" offset)
     (let ((n (read-sequence buf base-stream :start offset)))
-      (format t ";; new offset=~A~%" n)
+  ;;    (format t ";; new offset=~A~%" n)
       (setf offset n))
     (multiple-value-bind (token extra-bytes incomplete-p)
 	(schannel:initialize-client-context cxt buf 0 offset)
@@ -164,17 +160,17 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	 nil)
 	(t
 	 ;; token complete and was processed
-	 (format t ";; token=~S extra-bytes=~S incomplete-p=~S~%" token extra-bytes incomplete-p)
+;;	 (format t ";; token=~S extra-bytes=~S incomplete-p=~S~%" token extra-bytes incomplete-p)
 	 (when (arrayp token)
 	   ;; generated output token, send it
-	   (format t ";; sending token length=~A~%" (length token))
+;;	   (format t ";; sending token length=~A~%" (length token))
 	   (write-sequence token base-stream)
 	   (finish-output base-stream))
 	 
 	 (cond
 	   (extra-bytes
 	    ;; received extra bytes, memmove and update offsets
-	    (format t ";; extra bytes=~A~%" extra-bytes)
+;;	    (format t ";; extra bytes=~A~%" extra-bytes)
 	    (dotimes (i extra-bytes)
 	      (setf (aref buf i) (aref buf (+ (- offset extra-bytes) i))))
 	    (setf offset extra-bytes))
@@ -182,7 +178,7 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	    (setf offset 0)))
 	 (when (eq token nil)
 	   ;; token=t implies context complete
-	   (format t ";; init done~%")
+;;	   (format t ";; init done~%")
 	   (setf done t)))))))
 
 (defun make-client-stream (base-stream hostname &key ignore-certificates-p)
@@ -200,6 +196,10 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
       ;; return instance 
       (make-instance 'client-stream :stream base-stream :cxt cxt))))
 
+
+
+
+;; ------------------------------- Servers ----------------------------------
 
 
 (defclass server-stream (schannel-stream)

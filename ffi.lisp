@@ -1044,7 +1044,6 @@ bend is buffer end index and extra-start is starting index of first extra byte."
 			(- count (foreign-slot-value (mem-aptr secbufs '(:struct sec-buffer) i)
 						     '(:struct sec-buffer)
 						     'cbuffer)))))))
-	   
 	   (values bend extra-start nil))
 	  ((or (= sts +incomplete-message+) #+nil(= sts +invalid-token+))
 	   (values nil nil t))
