@@ -50,16 +50,19 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 		       (setf done t
 			     eof t))
 		     nread))))
-	(multiple-value-bind (end extra-start incomplete-p) (schannel:decrypt-message cxt rbuf :end n)
-	  (cond
-	    (incomplete-p
-	     (setf offset n))
-	    (t
-	     (setf rbuf-pt-start 0
-		   rbuf-pt-end end
-		   rbuf-ct-start (or extra-start 0)
-		   rbuf-ct-end (if extra-start n 0)
-		   done t))))))))
+	(cond
+	  ((zerop n) (setf done t))
+	  (t 
+	   (multiple-value-bind (end extra-start incomplete-p) (schannel:decrypt-message cxt rbuf :end n)
+	     (cond
+	       (incomplete-p
+		(setf offset n))
+	       (t
+		(setf rbuf-pt-start 0
+		      rbuf-pt-end end
+		      rbuf-ct-start (or extra-start 0)
+		      rbuf-ct-end (if extra-start n 0)
+		      done t))))))))))
 
 
 (defmethod trivial-gray-streams:stream-read-sequence ((stream schannel-stream) seq start end &key)
@@ -87,8 +90,10 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 
 (defmethod trivial-gray-streams:stream-read-byte ((stream schannel-stream))
   (let ((buf (make-array 1 :element-type '(unsigned-byte 8))))
-    (trivial-gray-streams:stream-read-sequence stream buf 0 1)
-    (aref buf 0)))
+    (let ((n (trivial-gray-streams:stream-read-sequence stream buf 0 1)))
+      (if (= n 1)
+	  (aref buf 0)
+	  :eof))))
 
 
 
