@@ -41,12 +41,17 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
     
     (do ((offset rbuf-ct-end)
 	 (first-loop-p t nil)
+	 (eof nil)
 	 (done nil))
-	(done)
+	(done eof)
       (let ((n (if (and (> rbuf-ct-end 0) first-loop-p)
 		   rbuf-ct-end
 		   (progn ;;(format t ";; reading from base stream first-loop-p=~A ct-end=~A~%" first-loop-p rbuf-ct-end)
-			  (read-sequence rbuf base-stream :start offset)))))
+		     (let ((nread (read-sequence rbuf base-stream :start offset)))
+		       (when (= nread offset)
+			 (setf done t
+			       eof t))
+		       nread)))))
 ;;	(format t ";; decrypt count=~A~%" n)
 	(multiple-value-bind (end extra-start incomplete-p) (schannel:decrypt-message cxt rbuf :end n)
 	  (cond
@@ -69,23 +74,27 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 
 (defmethod trivial-gray-streams:stream-read-sequence ((stream schannel-stream) seq start end &key)
   (with-slots (cxt rbuf rbuf-pt-start rbuf-pt-end rbuf-ct-start rbuf-ct-end) stream
-    (flet ((read-plaintext ()
-	     (let ((count (min (- end start) (- rbuf-pt-end rbuf-pt-start))))
-	       ;; copy into output buffer
-;;	       (format t ";; read plaintext count=~A~%" count)
-	       (dotimes (i count)
-		 (setf (aref seq (+ start i)) (aref rbuf (+ rbuf-pt-start i))))
-	       ;; update offsets 
-	       (incf rbuf-pt-start count)
-	       (+ start count))))
-      ;; there is remaining plaintext, read that out first
-      (cond
-	((not (= rbuf-pt-start rbuf-pt-end))
-	 (read-plaintext))
-	(t 
-	 ;; ok no plaintext left, lets read the next message	 
-	 (read-next-msg stream)
-	 (read-plaintext))))))
+    (let ((offset start))
+      (flet ((read-plaintext ()
+	       (let ((count (min (- end offset) (- rbuf-pt-end rbuf-pt-start))))
+		 ;; copy into output buffer
+		 ;;	       (format t ";; read plaintext count=~A~%" count)
+		 (dotimes (i count)
+		   (setf (aref seq (+ offset i)) (aref rbuf (+ rbuf-pt-start i))))
+		 ;; update offsets
+		 (incf offset count)
+		 (incf rbuf-pt-start count)
+		 (+ start count))))
+	;; there is remaining plaintext, read that out first
+	(do ((eof nil))
+	    ((or eof (>= offset end)) offset)
+	  (cond
+	    ((not (= rbuf-pt-start rbuf-pt-end))
+	     (read-plaintext))
+	    (t 
+	     ;; ok no plaintext left, lets read the next message
+	     (setf eof (read-next-msg stream))
+	     (read-plaintext))))))))
 
 (defmethod trivial-gray-streams:stream-read-byte ((stream schannel-stream))
   (let ((buf (make-array 1 :element-type '(unsigned-byte 8))))
