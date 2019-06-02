@@ -33,7 +33,6 @@ Host: ~A
     (with-open-stream (stream
 		       (schannel:make-client-stream base-stream hostname
 							    :ignore-certificates-p ignore-certificates-p))
-      (format t ";; sending data...")
       (write-sequence (babel:string-to-octets (format nil *http-request* hostname)) stream)
       (force-output base-stream)
       
@@ -46,7 +45,7 @@ Host: ~A
 			   (write-sequence buf s :end n)
 			   (finish-output base-stream))
 	     (error (e)
-	       (format t ";; ERROR: ~A~%" e)
+	       (format t "ERROR: ~A~%" e)
 	       (setf done t)))))
        :errorp nil))))
 
@@ -57,12 +56,11 @@ Host: ~A
   (let ((addr (fsocket:sockaddr-in (first (dns:get-host-by-name hostname)) port))
 	(buf (make-array 4096 :element-type '(unsigned-byte 8))))
     (fsocket:with-tcp-connection (fd addr)
-      (setf (fsocket:socket-option fd :socket :rcvtimeo) 1000)
+      (setf (fsocket:socket-option fd :socket :rcvtimeo) 5000)
       (let ((base-stream (fsocket::make-tcp-stream fd)))
 	(with-open-stream (stream
 			   (schannel:make-client-stream base-stream hostname
 								:ignore-certificates-p ignore-certificates-p))
-	  (format t ";; sending data...")
 	  (write-sequence (babel:string-to-octets (format nil *http-request* hostname)) stream)
 	  (babel:octets-to-string 
 	   (flexi-streams:with-output-to-sequence (s)
@@ -79,11 +77,27 @@ Host: ~A
 		   ;; In proper http client implementations this wouldn't be needed
 		   ;; because it would first parse the http header to get the conent
 		   ;; length, then it would know how much plaintext to read.
-		   (format t ";; ERROR: ~A~%" e)
+		   (format t "ERROR: ~A~%" e)
 		   (setf done t)))))
 	   :errorp nil))))))
 ;; tested with www.google.com and www.example.com. both seem to work 
 
   
+
+
+;; -----------------------------------
+
+(defun test-server (&key (port 8000) hcert)
+  (fsocket:with-tcp-socket (fd port)
+    (let ((cfd (fsocket:socket-accept fd)))
+      (with-open-stream (conn-stream (fsocket:make-tcp-stream cfd))
+	(with-open-stream (server-stream (schannel::make-server-stream conn-stream :hcert hcert))
+	  (let ((buf (make-array (* 16 1024) :element-type '(unsigned-byte 8))))
+	    (let ((n (read-sequence buf server-stream)))
+	      (declare (ignore n))
+	      (write-sequence (babel:string-to-octets *http-response*)
+			      server-stream)
+	      (force-output server-stream)))))))
+  nil)
 
 

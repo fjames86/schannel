@@ -169,25 +169,28 @@ same content, so acts as an echo server."
     (with-server-context (cxt)
       (format t ";; Waiting for incoming connection...~%")
       (multiple-value-bind (cfd raddr) (fsocket:socket-accept fd)
-	(format t ";; Accepted connection from ~A~%" (fsocket:sockaddr-string raddr))
+	(unwind-protect
+	     (progn
+	       (format t ";; Accepted connection from ~A~%" (fsocket:sockaddr-string raddr))
 	
-	(let ((buf (make-array (* 32 1024) :element-type '(unsigned-byte 8))))
-	  ;; two rounds of hand shaking 
-	  (let ((tok (recv-server-context-token cxt cfd buf)))
-	    (format t ";; Sending token len ~A~%" (length tok))
-	    (send-all cfd tok))
-	  
-	  (let ((tok (recv-server-context-token cxt cfd buf)))
-	    (format t ";; Sending token length=~A~%" (length tok))
-	    (send-all cfd tok))
-	  
-	  ;; receive a message and decrypt it
-	  (multiple-value-bind (bend extra-bytes) (recv-server-msg cxt cfd buf)
-	    (declare (ignore extra-bytes))
-	    (format t "~A~%" (babel:octets-to-string buf :end bend))	      
-	    ;; encrypt and reply with the same content
-	    (let ((eend (encrypt-message cxt buf :end bend)))
-	      (send-all cfd buf :end eend))))))))
+	       (let ((buf (make-array (* 32 1024) :element-type '(unsigned-byte 8))))
+		 ;; two rounds of hand shaking 
+		 (let ((tok (recv-server-context-token cxt cfd buf)))
+		   (format t ";; Sending token len ~A~%" (length tok))
+		   (send-all cfd tok))
+		 
+		 (let ((tok (recv-server-context-token cxt cfd buf)))
+		   (format t ";; Sending token length=~A~%" (length tok))
+		   (send-all cfd tok))
+		 
+		 ;; receive a message and decrypt it
+		 (multiple-value-bind (bend extra-bytes) (recv-server-msg cxt cfd buf)
+		   (declare (ignore extra-bytes))
+		   (format t "~A~%" (babel:octets-to-string buf :end bend))	      
+		   ;; encrypt and reply with the same content
+		   (let ((eend (encrypt-message cxt buf :end bend)))
+		     (send-all cfd buf :end eend)))))
+	  (fsocket:close-socket cfd))))))
 
       	       
 ;; CL-USER> (schannel/test::test-server-socket)

@@ -202,15 +202,38 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
   ())
 
 
+(defun recv-server-context-token (cxt stream buf)
+  (do ((offset 0)
+       (donetok nil))
+      (donetok donetok)
+    (let ((n (read-sequence buf stream :start offset)))
+      (when (= n offset) (error "end of file"))
+      (setf offset n)
+      (multiple-value-bind (token extra-bytes incomplete-p) (accept-server-context cxt buf 0 offset)
+	(cond
+	  (incomplete-p	nil)
+	  ((and (arrayp token) (= (length token) 0))
+	   (when extra-bytes
+	     (dotimes (i extra-bytes)
+	       (setf (aref buf i) (aref buf (+ (- offset extra-bytes) i)))))
+	   (setf offset extra-bytes))
+	  (t 
+	   (setf donetok (or token t))))))))
+
 (defun make-server-stream (base-stream &key hcert)
   (let ((cxt (schannel:make-server-context :hcert hcert)))
     (handler-bind ((error (lambda (e)
 			    (declare (ignore e))
 			    (schannel:free-schannel-context cxt))))
-      ;; setup context
-      ;; TODO
+
+      (let ((buf (make-array (* 32 1024) :element-type '(unsigned-byte 8))))
+	;; two rounds of hand shaking 
+	(let ((tok (recv-server-context-token cxt base-stream buf)))
+	  (write-sequence tok base-stream))
+	
+	(let ((tok (recv-server-context-token cxt base-stream buf)))
+	  (write-sequence tok base-stream)))
       
-      ;; return
       (make-instance 'server-stream :stream base-stream :cxt cxt))))
 				     
 
