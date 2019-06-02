@@ -42,6 +42,7 @@
 
 	   ;; streams
 	   #:make-client-stream
+	   #:make-server-stream
 	   ))
 
 
