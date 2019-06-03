@@ -236,7 +236,7 @@
   (with-foreign-object (str :uint16 512)
     (let ((sts (%cert-name-to-string 1 ;; x509
 				     pblob
-				     3 ;; CERT_X500_NAME_STR
+				     1 ;; 1=CERT_SIMPLE_NAME_STR 3=CERT_X500_NAME_STR
 				     str
 				     512)))
       (unless (= sts 0)
@@ -355,12 +355,13 @@
   (prev :pointer))
 (defconstant +cert-find-any+ 0)
 (defconstant +cert-find-subject-name+ (logior (ash 2 16) 7))
+(defconstant +cert-find-subject-str+ (logior (ash 8 16) 7))
 (defun find-certificate-in-store (hstore &key subject-name)
   (with-foreign-string (ppara (or subject-name "") :encoding :ucs-2)
     (let ((res (%cert-find-certificate-in-store hstore
 						1 ;; x509 encoding 
 						0 ;; flags not used
-						(if subject-name +cert-find-subject-name+ +cert-find-any+)
+						(if subject-name +cert-find-subject-str+ +cert-find-any+)
 						(if subject-name ppara (null-pointer))
 						(null-pointer))))
       (if (null-pointer-p res)
