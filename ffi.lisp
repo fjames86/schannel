@@ -368,6 +368,22 @@
 	  nil
 	  res))))
 
+(defun find-system-certificate (certificate-path)
+  "Find a certificate in a path. Path format is [store/]subject-name. store is CA|MY|ROOT|SPC"
+  (let ((pos (position #\/ certificate-path :test #'char=))
+	(store nil)
+	(cert nil))
+    (cond
+      (pos
+       (setf store (subseq certificate-path 0 pos)
+	     cert (subseq certificate-path (1+ pos))))
+      (t
+       (setf cert certificate-path)))
+    (let ((hstore (cert-open-system-store store)))
+      (unwind-protect
+	   (find-certificate-in-store hstore :subject-name cert)
+	(cert-close-store hstore)))))
+
 ;; PCCERT_CONTEXT CertEnumCertificatesInStore(
 ;;   HCERTSTORE     hCertStore,
 ;;   PCCERT_CONTEXT pPrevCertContext
@@ -384,7 +400,10 @@
       (let ((psubject (foreign-slot-pointer pinfo '(:struct cert-info) 'subject)))
 	(push (cert-name-to-string psubject) cert-names)))))
 
-      
+(defun enum-system-certificates (&optional store)
+  (let ((hstore (cert-open-system-store store)))
+    (unwind-protect (enum-certificates-in-store hstore)
+      (cert-close-store hstore))))
 
 ;; BOOL CertAddCertificateContextToStore(
 ;;   HCERTSTORE     hCertStore,

@@ -39,7 +39,9 @@
 	   #:find-certificate-in-store
 	   #:enum-certificates-in-store
 	   #:add-certificate-to-store
-
+	   #:enum-system-certificates
+	   #:find-system-certificate
+	   
 	   ;; streams
 	   #:make-client-stream
 	   #:make-server-stream

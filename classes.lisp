@@ -78,10 +78,20 @@ Returns values token incomplete-p
   ())
 
 (defun make-server-context (&key hcert)
-  (let ((hc (or hcert (create-self-signed-certificate))))
+  "Make a server context. 
+HCERT ::= certificate handle, string or null. If string, names a certificate that can be acquired using 
+FIND-SYSTEM-CERTIFICATE. If null, a temporary self signed certificate will be created.
+"
+  (let ((hc (cond
+	      ((cffi:pointerp hcert) hcert)
+	      ((stringp hcert)
+	       (let ((h (find-system-certificate hcert)))
+		 (unless h (error "Unable to find certificate ~S" hcert))
+		 h))
+	      (t (create-self-signed-certificate)))))
     (unwind-protect (make-instance 'server-context
 				   :hcred (acquire-credentials-handle :serverp t :hcert hc))
-      (unless hcert
+      (unless (cffi:pointerp hcert)
 	(free-certificate-context hc)))))
 
 
@@ -125,8 +135,6 @@ Returns values token incomplete-p
 
 
 
-
-;; TODO: client/server stream classes ??? 
 
 
 

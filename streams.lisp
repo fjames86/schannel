@@ -47,6 +47,7 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 		   rbuf-ct-end
 		   (let ((nread (read-sequence rbuf base-stream :start offset)))
 		     (when (= nread offset)
+		       (format t "EOF!!~%")
 		       (setf done t
 			     eof t))
 		     nread))))
