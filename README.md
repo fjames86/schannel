@@ -67,6 +67,25 @@ use schannel on windows rather than CL+SSL.
  - properly handle shutdowns ?
  - apply control tokens e.g. alerts
 
+## 4. Notes
+## 4.1 How to create and install a self signed certificate.
+
+To use schannel as a server you need both root and server certificates. The server machine needs the server certificate installed,
+any clients which want to validate the certificate (e.g. web browsers) will need the root certificate installed.
+
+To generate these run the following powershell script 
+```
+ $cert = New-SelfSignedCertificate -certstorelocation cert:\localmachine\my -dnsname my.example.host
+ $pwd = ConvertTo-SecureString -String password1234 -Force -AsPlainText
+ $path = "cert:\localMachine\my\" + $cert.thumbprint
+ Export-PfxCertificate -cert $path -FilePath c:\temp\powershellcert.pfx -Password $pwd
+```
+Find this file in explorer and double click it to install. This installs the server certificate.
+
+Then open the certificates mmc console, find the certificate and copy/paste it into third party trusted root certificates.
+ 
+TODO: should be able to do this exclusively using schannel.
+
 ## License
 
 Released under the terms of the MIT license.
