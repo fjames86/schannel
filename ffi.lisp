@@ -304,14 +304,25 @@
   (para :pointer))
 (defun cert-open-file-store (filename)
   (with-foreign-string (pfname filename :encoding :ucs-2)
-    (let ((res (%cert-open-store (make-pointer 8) ;; CERT_STORE_PROV_FILENAME_W
+    (let ((res (%cert-open-store (make-pointer +cert-store-prov-filename-w+) 
 				 1 ;; x509
 				 (null-pointer)
-				 #x4000 ;; CERT_STORE_OPEN_EXISTING_FLAG
+				 +cert-store-open-existing-flag+ 
 				 pfname)))
       (if (null-pointer-p res)
 	  (error "Failed to open certificate store")
 	  res))))
+
+(defun cert-open-memory-store ()
+  (let ((hstore (%cert-open-store (make-pointer +cert-store-prov-memory+)
+				  0
+				  (null-pointer)
+				  0
+				  (null-pointer))))
+    (if (null-pointer-p hstore)
+	(error "Failed to open memory store")
+	hstore)))
+		    
 
 ;; HCERTSTORE CertOpenSystemStoreW(
 ;;   HCRYPTPROV_LEGACY hProv,
@@ -405,6 +416,12 @@
     (unwind-protect (enum-certificates-in-store hstore)
       (cert-close-store hstore))))
 
+(defun get-encoded-certificate (hcert)
+  (let ((count (foreign-slot-value hcert '(:struct cert-context) 'cencoded))
+	(ptr (foreign-slot-value hcert '(:struct cert-context) 'encoded)))
+    (copyout ptr count)))
+  
+
 ;; BOOL CertAddCertificateContextToStore(
 ;;   HCERTSTORE     hCertStore,
 ;;   PCCERT_CONTEXT pCertContext,
@@ -424,6 +441,70 @@
     (if b
 	nil
 	(error "Failed to add certificate to store"))))
+
+
+;; BOOL PFXExportCertStoreEx(
+;;   HCERTSTORE      hStore,
+;;   CRYPT_DATA_BLOB *pPFX,
+;;   LPCWSTR         szPassword,
+;;   void            *pvPara,
+;;   DWORD           dwFlags
+;; );
+(defcfun (%pfx-export-cert-store "PFXExportCertStoreEx" :convention :stdcall) :boolean
+  (hstore :pointer)
+  (blob :pointer)
+  (password :pointer)
+  (para :pointer)
+  (flags :uint32))
+(defun pfx-export-cert-store (hstore password)
+  (with-foreign-objects ((pblob '(:struct crypt-blob)))
+    (with-foreign-string (wstr password :encoding :ucs-2)
+      (memset pblob (foreign-type-size '(:struct crypt-blob)))
+      (let ((b (%pfx-export-cert-store hstore pblob wstr (null-pointer) #x4)))
+	(unless b (error "PFXExportCertStore failed"))
+	(let ((count (foreign-slot-value pblob '(:struct crypt-blob) 'count)))
+	  (with-foreign-object (buf :uint8 count)
+	    (setf (foreign-slot-value pblob '(:struct crypt-blob) 'ptr) buf)
+	    (let ((b2 (%pfx-export-cert-store hstore pblob wstr (null-pointer) #x4)))
+	      (unless b2 (error "PFXExportCertStore failed2"))
+	      (copyout buf count))))))))
+
+(defun export-certificate (hcert password)
+  (let ((hstore (cert-open-memory-store)))
+    (add-certificate-to-store hstore hcert)
+    (unwind-protect (pfx-export-cert-store hstore password)
+      (cert-close-store hstore))))
+
+(defun export-system-certificate (certificate-path password)
+  (let ((hcert (find-system-certificate certificate-path)))
+    (unwind-protect (export-certificate hcert password)
+      (free-certificate-context hcert))))
+
+;; HCERTSTORE PFXImportCertStore(
+;;   CRYPT_DATA_BLOB *pPFX,
+;;   LPCWSTR         szPassword,
+;;   DWORD           dwFlags
+;;   );
+(defcfun (%pfx-import-cert-store "PFXImportCertStore" :convention :stdcall) :pointer
+  (blob :pointer)
+  (password :pointer)
+  (flags :uint32))
+(defun pfx-import-cert-store (data password &key (start 0) end)
+  (let ((count (- (or end (length data)) start)))
+    (with-foreign-objects ((blob '(:struct crypt-blob))
+			   (buf :uint8 count))
+      (with-foreign-string (wstr password :encoding :ucs-2)
+	(setf (foreign-slot-value blob '(:struct crypt-blob) 'count) count
+	      (foreign-slot-value blob '(:struct crypt-blob) 'ptr) buf)
+	(let ((hstore (%pfx-import-cert-store blob wstr 0)))
+	  (if (null-pointer-p hstore)
+	      (error "Failed to import cert store")
+	      hstore))))))
+
+      
+
+    
+
 
 
 ;; typedef struct _SCHANNEL_CRED
