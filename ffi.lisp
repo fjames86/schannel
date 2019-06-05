@@ -379,22 +379,6 @@
 	  nil
 	  res))))
 
-(defun find-system-certificate (certificate-path)
-  "Find a certificate in a path. Path format is [store/]subject-name. store is CA|MY|ROOT|SPC"
-  (let ((pos (position #\/ certificate-path :test #'char=))
-	(store nil)
-	(cert nil))
-    (cond
-      (pos
-       (setf store (subseq certificate-path 0 pos)
-	     cert (subseq certificate-path (1+ pos))))
-      (t
-       (setf cert certificate-path)))
-    (let ((hstore (cert-open-system-store store)))
-      (unwind-protect
-	   (find-certificate-in-store hstore :subject-name cert)
-	(cert-close-store hstore)))))
-
 ;; PCCERT_CONTEXT CertEnumCertificatesInStore(
 ;;   HCERTSTORE     hCertStore,
 ;;   PCCERT_CONTEXT pPrevCertContext
@@ -411,17 +395,6 @@
       (let ((psubject (foreign-slot-pointer pinfo '(:struct cert-info) 'subject)))
 	(push (cert-name-to-string psubject) cert-names)))))
 
-(defun enum-system-certificates (&optional store)
-  (let ((hstore (cert-open-system-store store)))
-    (unwind-protect (enum-certificates-in-store hstore)
-      (cert-close-store hstore))))
-
-(defun get-encoded-certificate (hcert)
-  (let ((count (foreign-slot-value hcert '(:struct cert-context) 'cencoded))
-	(ptr (foreign-slot-value hcert '(:struct cert-context) 'encoded)))
-    (copyout ptr count)))
-  
-
 ;; BOOL CertAddCertificateContextToStore(
 ;;   HCERTSTORE     hCertStore,
 ;;   PCCERT_CONTEXT pCertContext,
@@ -436,7 +409,7 @@
 (defun add-certificate-to-store (hstore hcert)
   (let ((b (%cert-add-certificate-context-to-store hstore
 						   hcert
-						   4 ;; CERT_STORE_ADD_ALWAYS
+						   3 ;; CERT_STORE_ADD_REPLACE_EXISTING
 						   (null-pointer))))
     (if b
 	nil
@@ -469,17 +442,6 @@
 	      (unless b2 (error "PFXExportCertStore failed2"))
 	      (copyout buf count))))))))
 
-(defun export-certificate (hcert password)
-  (let ((hstore (cert-open-memory-store)))
-    (add-certificate-to-store hstore hcert)
-    (unwind-protect (pfx-export-cert-store hstore password)
-      (cert-close-store hstore))))
-
-(defun export-system-certificate (certificate-path password)
-  (let ((hcert (find-system-certificate certificate-path)))
-    (unwind-protect (export-certificate hcert password)
-      (free-certificate-context hcert))))
-
 ;; HCERTSTORE PFXImportCertStore(
 ;;   CRYPT_DATA_BLOB *pPFX,
 ;;   LPCWSTR         szPassword,
@@ -501,12 +463,77 @@
 	      (error "Failed to import cert store")
 	      hstore))))))
 
+
+;; BOOL CertSerializeCertificateStoreElement(
+;;   PCCERT_CONTEXT pCertContext,
+;;   DWORD          dwFlags,
+;;   BYTE           *pbElement,
+;;   DWORD          *pcbElement
+;; );
+(defcfun (%cert-serialize-certificate "CertSerializeCertificateStoreElement" :convention :stdcall) :boolean
+  (hcert :pointer)
+  (flags :uint32)
+  (buf :pointer)
+  (count :pointer))
+(defun cert-serialize-certificate (hcert)
+  (with-foreign-object (count :uint32)
+    (setf (mem-aref count :uint32) 0)
+    (let ((b (%cert-serialize-certificate hcert 0 (null-pointer) count)))
+      (when b
+	(with-foreign-object (buf :uint8 (mem-aref count :uint32))
+	  (let ((b2 (%cert-serialize-certificate hcert 0 buf count)))
+	    (when b2
+	      (copyout buf (mem-aref count :uint32)))))))))
+	  
+;; BOOL CertAddSerializedElementToStore(
+;;   HCERTSTORE hCertStore,
+;;   const BYTE *pbElement,
+;;   DWORD      cbElement,
+;;   DWORD      dwAddDisposition,
+;;   DWORD      dwFlags,
+;;   DWORD      dwContextTypeFlags,
+;;   DWORD      *pdwContextType,
+;;   const void **ppvContext
+;; );
+(defcfun (%cert-add-serialized-element-to-store "CertAddSerializedElementToStore" :convention :stdcall) :boolean
+  (hstore :pointer)
+  (buf :pointer)
+  (count :uint32)
+  (disposition :uint32)
+  (flags :uint32)
+  (cxttypeflags :uint32)
+  (cxttype :pointer)
+  (cxt :pointer))
+(defun cert-add-serialized-element-to-store (hstore buf &key (start 0) end)
+  (let ((count (- (or end (length buf)) start)))
+    (with-foreign-objects ((pbuf :uint8 count)
+			   (phcert :pointer))
+      (let ((b (%cert-add-serialized-element-to-store
+		hstore
+		pbuf
+		count
+		3 ;; CERT_STORE_ADD_REPLACE_EXISTING
+		0
+		#xffffffff ;; CERT_STORE_ALL_CONTEXT_FLAG
+		(null-pointer)
+		phcert)))
+	(if b
+	    (mem-aref phcert :pointer)
+	    (error "CertAddSerializedElementToStore failed"))))))
+
+	    
+
+
+
+
+
+
+
+
+
+
+
       
-
-    
-
-
-
 ;; typedef struct _SCHANNEL_CRED
 ;; {
 ;;     DWORD           dwVersion;      // always SCHANNEL_CRED_VERSION

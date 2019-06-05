@@ -43,7 +43,6 @@
 	   #:find-system-certificate
 	   #:export-certificate 
 	   #:export-system-certificate
-	   #:get-encoded-certificate
 	   
 	   ;; streams
 	   #:make-client-stream

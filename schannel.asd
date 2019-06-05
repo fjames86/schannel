@@ -12,6 +12,7 @@
    (:file "constants")
    (:file "errors")
    (:file "ffi")
+   (:file "certificates")
    (:file "classes")
    (:file "streams"))
   :depends-on (:cffi :trivial-gray-streams))
