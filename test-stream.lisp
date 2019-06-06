@@ -87,11 +87,11 @@ Host: ~A
 
 ;; -----------------------------------
 
-(defun test-server (&key (port 8000) hcert)
+(defun test-server (&key (port 8000) certificate)
   (fsocket:with-tcp-socket (fd port)
     (let ((cfd (fsocket:socket-accept fd)))
       (with-open-stream (conn-stream (fsocket:make-tcp-stream cfd))
-	(with-open-stream (server-stream (schannel::make-server-stream conn-stream :hcert hcert))
+	(with-open-stream (server-stream (schannel::make-server-stream conn-stream :certificate certificate))
 	  (let ((buf (make-array (* 16 1024) :element-type '(unsigned-byte 8))))
 	    (let ((n (read-sequence buf server-stream)))
 	      (declare (ignore n))

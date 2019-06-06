@@ -77,21 +77,21 @@ Returns values token incomplete-p
 (defclass server-context (schannel-context)
   ())
 
-(defun make-server-context (&key hcert)
+(defun make-server-context (&key certificate)
   "Make a server context. 
 HCERT ::= certificate handle, string or null. If string, names a certificate that can be acquired using 
 FIND-SYSTEM-CERTIFICATE. If null, a temporary self signed certificate will be created.
 "
   (let ((hc (cond
-	      ((cffi:pointerp hcert) hcert)
-	      ((stringp hcert)
-	       (let ((h (find-system-certificate hcert)))
-		 (unless h (error "Unable to find certificate ~S" hcert))
+	      ((cffi:pointerp certificate) certificate)
+	      ((stringp certificate)
+	       (let ((h (find-system-certificate certificate)))
+		 (unless h (error "Unable to find certificate ~S" certificate))
 		 h))
 	      (t (create-self-signed-certificate)))))
     (unwind-protect (make-instance 'server-context
 				   :hcred (acquire-credentials-handle :serverp t :hcert hc))
-      (unless (cffi:pointerp hcert)
+      (unless (cffi:pointerp certificate)
 	(free-certificate-context hc)))))
 
 

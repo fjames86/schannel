@@ -49,55 +49,55 @@
 
 
 
-(defclass certificate ()
-  ((subject :initarg :subject :reader certificate-subject)
-   (data :initarg :data :reader certificate-data)))
+;; (defclass certificate ()
+;;   ((subject :initarg :subject :reader certificate-subject)
+;;    (data :initarg :data :reader certificate-data)))
 
-(defmethod print-object ((cert certificate) stream)
-  (print-unreadable-object (cert stream :type t)
-    (format t ":SUBJECT ~A" (certificate-subject cert))))
+;; (defmethod print-object ((cert certificate) stream)
+;;   (print-unreadable-object (cert stream :type t)
+;;     (format t ":SUBJECT ~A" (certificate-subject cert))))
 
-(defun make-certificate-from-data (data &key (start 0) end)
-  (let ((hstore (cert-open-memory-store)))
-    (unwind-protect
-	 (let ((hcert (cert-add-serialized-element-to-store hstore data :start start :end end)))
-	   (make-instance 'certificate
-			  :subject (let ((pinfo (foreign-slot-value hcert '(:struct cert-context) 'info)))
-				     (let ((psubject (foreign-slot-pointer pinfo '(:struct cert-info) 'subject)))
-				       (cert-name-to-string psubject)))
-			  :data (subseq data start end)))
-      (cert-close-store hstore))))
+;; (defun make-certificate-from-data (data &key (start 0) end)
+;;   (let ((hstore (cert-open-memory-store)))
+;;     (unwind-protect
+;; 	 (let ((hcert (cert-add-serialized-element-to-store hstore data :start start :end end)))
+;; 	   (make-instance 'certificate
+;; 			  :subject (let ((pinfo (foreign-slot-value hcert '(:struct cert-context) 'info)))
+;; 				     (let ((psubject (foreign-slot-pointer pinfo '(:struct cert-info) 'subject)))
+;; 				       (cert-name-to-string psubject)))
+;; 			  :data (subseq data start end)))
+;;       (cert-close-store hstore))))
 
-(defun make-certificate-from-handle (hcert)
-  (make-instance 'certificate
-		 :subject (let* ((pinfo (foreign-slot-value hcert '(:struct cert-context) 'info))
-				 (psubject (foreign-slot-pointer pinfo '(:struct cert-info) 'subject)))
-			    (cert-name-to-string psubject))
-		 :data (cert-serialize-certificate hcert)))
+;; (defun make-certificate-from-handle (hcert)
+;;   (make-instance 'certificate
+;; 		 :subject (let* ((pinfo (foreign-slot-value hcert '(:struct cert-context) 'info))
+;; 				 (psubject (foreign-slot-pointer pinfo '(:struct cert-info) 'subject)))
+;; 			    (cert-name-to-string psubject))
+;; 		 :data (cert-serialize-certificate hcert)))
   
 
-(defun make-certificate-from-file (filespec)
-  (with-open-file (stream filespec :direction :input :element-type '(unsigned-byte 8))
-    (let* ((count (file-length stream))
-	   (buf (make-array count :element-type '(unsigned-byte 8))))
-      (read-sequence buf stream)
-      (make-certificate-from-data buf))))
+;; (defun make-certificate-from-file (filespec)
+;;   (with-open-file (stream filespec :direction :input :element-type '(unsigned-byte 8))
+;;     (let* ((count (file-length stream))
+;; 	   (buf (make-array count :element-type '(unsigned-byte 8))))
+;;       (read-sequence buf stream)
+;;       (make-certificate-from-data buf))))
 
-(defun make-certificate-from-path (certificate-path)
-  (let ((hcert (find-system-certificate certificate-path)))
-    (unwind-protect (make-certificate-from-handle hcert)
-      (free-certificate-context hcert))))
+;; (defun make-certificate-from-path (certificate-path)
+;;   (let ((hcert (find-system-certificate certificate-path)))
+;;     (unwind-protect (make-certificate-from-handle hcert)
+;;       (free-certificate-context hcert))))
 
-(defmacro with-certificate-handle ((var certificate) &body body)
-  (let ((ghstore (gensym))
-	(gcert (gensym)))
-    `(let ((,ghstore (cert-open-memory-store))
-	   (,gcert ,certificate))
-       (unwind-protect
-	    (let ((,var (cert-add-serialized-element-to-store ,ghstore (certificate-data ,gcert))))
-	      (unwind-protect (progn ,@body)
-		(free-certificate-context ,var)))
-	 (cert-close-store ,ghstore)))))
+;; (defmacro with-certificate-handle ((var certificate) &body body)
+;;   (let ((ghstore (gensym))
+;; 	(gcert (gensym)))
+;;     `(let ((,ghstore (cert-open-memory-store))
+;; 	   (,gcert ,certificate))
+;;        (unwind-protect
+;; 	    (let ((,var (cert-add-serialized-element-to-store ,ghstore (certificate-data ,gcert))))
+;; 	      (unwind-protect (progn ,@body)
+;; 		(free-certificate-context ,var)))
+;; 	 (cert-close-store ,ghstore)))))
 
 
 

@@ -53,7 +53,7 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	(cond
 	  ((zerop n) (setf done t))
 	  (t 
-	   (multiple-value-bind (end extra-start incomplete-p) (schannel:decrypt-message cxt rbuf :end n)
+	   (multiple-value-bind (end extra-start incomplete-p) (decrypt-message cxt rbuf :end n)
 	     (cond
 	       (incomplete-p
 		(setf offset n))
@@ -111,7 +111,7 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
     (let ((count (- end start)))
       (dotimes (i count)
 	(setf (aref sbuf i) (aref seq (+ start i))))
-      (let ((bend (schannel:encrypt-message cxt sbuf :end count)))
+      (let ((bend (encrypt-message cxt sbuf :end count)))
 	;; write all of it to the base stream. this means
 	;; we don't buffer unwritten content so that we don't need
 	;; to worry about force-output/finish-output 
@@ -128,7 +128,7 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 (defmethod close ((stream schannel-stream) &key abort)
   (declare (ignore abort))
   ;; TODO: initiate a TLS socket shutdown. this requires exchanging messages (close notify)  
-  (schannel:free-schannel-context (stream-cxt stream)))
+  (free-schannel-context (stream-cxt stream)))
 
 
 
@@ -138,11 +138,11 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
   (print-unreadable-object (cs stream :type t)
     (format stream ":HOSTNAME ~S"
 	    (let ((cxt (stream-cxt cs)))
-	      (when cxt (schannel:client-context-hostname cxt))))))
+	      (when cxt (client-context-hostname cxt))))))
 
 (defun init-client-stream (cxt base-stream)
   ;; start by generating the first token
-  (let ((tok (schannel:initialize-client-context cxt)))
+  (let ((tok (initialize-client-context cxt)))
     (write-sequence tok base-stream)
     (finish-output base-stream))
   
@@ -153,7 +153,7 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
     (let ((n (read-sequence buf base-stream :start offset)))
       (setf offset n))
     (multiple-value-bind (token extra-bytes incomplete-p)
-	(schannel:initialize-client-context cxt buf 0 offset)
+	(initialize-client-context cxt buf 0 offset)
       (cond
 	(incomplete-p
 	 ;; recv token incomplete - need more bytes
@@ -178,12 +178,12 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	   (setf done t)))))))
 
 (defun make-client-stream (base-stream hostname &key ignore-certificates-p)
-  (let ((cxt (schannel:make-client-context
+  (let ((cxt (make-client-context
 				     hostname
 				     :ignore-certificates-p ignore-certificates-p)))
     (handler-bind ((error (lambda (e)
 			    (declare (ignore e))
-			    (schannel:free-schannel-context cxt))))
+			    (free-schannel-context cxt))))
 
 
       ;; setup context
@@ -220,11 +220,11 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	  (t 
 	   (setf donetok (or token t))))))))
 
-(defun make-server-stream (base-stream &key hcert)
-  (let ((cxt (schannel:make-server-context :hcert hcert)))
+(defun make-server-stream (base-stream &key certificate)
+  (let ((cxt (make-server-context :certificate certificate)))
     (handler-bind ((error (lambda (e)
 			    (declare (ignore e))
-			    (schannel:free-schannel-context cxt))))
+			    (free-schannel-context cxt))))
 
       (let ((buf (make-array (* 32 1024) :element-type '(unsigned-byte 8))))
 	;; two rounds of hand shaking 

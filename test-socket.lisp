@@ -2,7 +2,7 @@
 ;;;; This code is licensed under the MIT license.
 
 (defpackage #:schannel/test
-  (:use #:cl #:schannel)
+  (:use #:cl)
   (:export #:test-client-socket
 	   #:test-server-socket))
    
@@ -20,7 +20,7 @@ Host: ~A
       (donetok donetok)
     (let ((n (fsocket:socket-recv fd buf :start offset)))
       (incf offset n)
-      (multiple-value-bind (token extra-bytes incomplete-p) (initialize-client-context cxt buf 0 offset)
+      (multiple-value-bind (token extra-bytes incomplete-p) (schannel::initialize-client-context cxt buf 0 offset)
 	(cond
 	  (incomplete-p
 	   (format t ";; recv token incomplete offset=~A~%" offset))
@@ -44,7 +44,7 @@ Host: ~A
       ((or done (= offset (length buf))))
     (let ((n (fsocket:socket-recv fd buf :start offset)))
       (incf offset n)
-      (multiple-value-bind (end extra-bytes incomplete-p) (decrypt-message cxt buf :end offset)
+      (multiple-value-bind (end extra-bytes incomplete-p) (schannel::decrypt-message cxt buf :end offset)
 	(cond
 	  (incomplete-p
 	   (format t ";; incomplete message offset=~A~%" offset))
@@ -80,10 +80,10 @@ HOSTNAME ::= DNS hostname of server to connect to. Name resolved using the funct
 PORT ::= server TCP port to connect.
 IGNORE-CERTIFICATES-P ::= if true, sets flags to ignore certificate validation errors. This can be useful if the server uses a certificate not signed by a trusted root authority.
 "
-  (with-client-context (cxt hostname :ignore-certificates-p ignore-certificates-p)
+  (schannel::with-client-context (cxt hostname :ignore-certificates-p ignore-certificates-p)
     (fsocket:with-tcp-connection (fd (fsocket:sockaddr-in (first (dns:get-host-by-name hostname)) port))
       (setf (fsocket:socket-option fd :socket :rcvtimeo) 1000)
-      (let ((tok1 (initialize-client-context cxt)))
+      (let ((tok1 (schannel::initialize-client-context cxt)))
 	(send-all fd tok1))
       
       (let ((buf (make-array (* 32 1024) :element-type '(unsigned-byte 8))))
@@ -94,7 +94,7 @@ IGNORE-CERTIFICATES-P ::= if true, sets flags to ignore certificate validation e
 	(let ((octets (babel:string-to-octets (format nil *http-request* hostname))))
 	  (dotimes (i (length octets))
 	    (setf (aref buf i) (aref octets i)))
-	  (let ((offset (encrypt-message cxt buf :end (length octets))))
+	  (let ((offset (schannel::encrypt-message cxt buf :end (length octets))))
 	    (send-all fd buf :end offset)))
 	  
 	(multiple-value-bind (nn extra-bytes) (recv-client-msg cxt fd buf)
@@ -128,7 +128,7 @@ IGNORE-CERTIFICATES-P ::= if true, sets flags to ignore certificate validation e
       (donetok donetok)
     (let ((n (fsocket:socket-recv fd buf :start offset)))
       (incf offset n)
-      (multiple-value-bind (token extra-bytes incomplete-p) (accept-server-context cxt buf 0 offset)
+      (multiple-value-bind (token extra-bytes incomplete-p) (schannel::accept-server-context cxt buf 0 offset)
 	(cond
 	  (incomplete-p
 	   (format t ";; recv token incomplete offset=~A~%" offset))
@@ -151,7 +151,7 @@ IGNORE-CERTIFICATES-P ::= if true, sets flags to ignore certificate validation e
       ((or done (= offset (length buf))))
     (let ((n (fsocket:socket-recv fd buf :start offset)))
       (incf offset n)
-      (multiple-value-bind (end extra-bytes incomplete-p) (decrypt-message cxt buf :end offset)
+      (multiple-value-bind (end extra-bytes incomplete-p) (schannel::decrypt-message cxt buf :end offset)
 	(cond
 	  (incomplete-p
 	   (format t ";; incomplete message offset=~A~%" offset))
@@ -166,7 +166,7 @@ same content, so acts as an echo server."
   (fsocket:with-tcp-socket (fd port)
     (setf (fsocket:socket-option fd :socket :rcvtimeo) 1000)
 
-    (with-server-context (cxt)
+    (schannel::with-server-context (cxt)
       (format t ";; Waiting for incoming connection...~%")
       (multiple-value-bind (cfd raddr) (fsocket:socket-accept fd)
 	(unwind-protect
