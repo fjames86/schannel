@@ -87,6 +87,8 @@ Host: ~A
 
 ;; -----------------------------------
 
+(defparameter *http-response* nil)
+
 (defun test-server (&key (port 8000) certificate)
   (fsocket:with-tcp-socket (fd port)
     (let ((cfd (fsocket:socket-accept fd)))

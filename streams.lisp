@@ -41,18 +41,27 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
     (do ((offset rbuf-ct-end)
 	 (first-loop-p t nil)
 	 (eof nil)
-	 (done nil))
+	 (done nil)
+	 (msglen 0))
 	(done eof)
       (let ((n (if (and (> rbuf-ct-end 0) first-loop-p)
 		   rbuf-ct-end
-		   (let ((nread (read-sequence rbuf base-stream :start offset)))
+		   (let ((nread (read-sequence rbuf base-stream :start offset
+					       :end (+ msglen 5))))
 		     (when (= nread offset)
 		       (setf done t
 			     eof t))
 		     nread))))
 	(cond
 	  ((zerop n) (setf done t))
-	  (t 
+	  (t
+	   ;; TODO: parse msglen 
+	   (when (zerop msglen)
+	     (let ((msgcode (aref rbuf offset)))
+	       (format t ";; READ-NEXT-MSG msgcode=~A~%" msgcode))
+	     (setf msglen (nibbles:ub16ref/be rbuf (+ offset 3)))
+	     (format t ";; READ-NEXT-MSG setting msglen=~A~%" msglen))
+	   
 	   (multiple-value-bind (end extra-start incomplete-p) (decrypt-message cxt rbuf :end n)
 	     (cond
 	       (incomplete-p
@@ -62,7 +71,11 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 		      rbuf-pt-end end
 		      rbuf-ct-start (or extra-start 0)
 		      rbuf-ct-end (if extra-start n 0)
-		      done t))))))))))
+		      done t)
+
+		(format t ";; READ-NEXT-MSG DONE msglen=~A read nbytes=~A~%" msglen (- rbuf-ct-end rbuf-ct-start))
+		
+)))))))))
 
 
 (defmethod trivial-gray-streams:stream-read-sequence ((stream schannel-stream) seq start end &key)
@@ -85,6 +98,7 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	     (read-plaintext))
 	    (t 
 	     ;; ok no plaintext left, lets read the next message
+	     (format t ";; STREAM-READ-SEQUENCE reading next message~%")
 	     (setf eof (read-next-msg stream))
 	     (read-plaintext))))))))
 
@@ -148,15 +162,31 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
   
   (do ((offset 0)
        (buf (make-array (* 16 1024) :element-type '(unsigned-byte 8)))
+       (msglen 0)
        (done nil))
       (done)
-    (let ((n (read-sequence buf base-stream :start offset)))
+    (let ((n (read-sequence buf base-stream :start offset :end (if (zerop msglen) 5 (+ msglen 5)))))
+      (when (= n offset)
+	(error "init-client-stream unexpected end of file"))
       (setf offset n))
+
+    (when (and (zerop msglen) (>= offset 5))
+      (let ((msgtype (aref buf 0)))
+	(format t ";; INIT-CLIENT-STEAM msgtype=~A~%" msgtype))
+      (setf msglen (nibbles:ub16ref/be buf 3))
+      (format t ";; INIT-CLIENT-STREAM msglen=~A~%" msglen)
+      (when (zerop msglen)
+	(format t ";; INIT-CLIENT-STEAM msglen=0 DONE~%")
+	(setf done t)))
+
+    (format t ";; INIT-CLIENT-STEAM try with ~A bytes~%" offset)
     (multiple-value-bind (token extra-bytes incomplete-p)
 	(initialize-client-context cxt buf 0 offset)
       (cond
 	(incomplete-p
 	 ;; recv token incomplete - need more bytes
+	 (when (= (+ msglen 5) offset)
+	   (error "Read msglen=~A bytes but still msg is incomplete" msglen))
 	 nil)
 	(t
 	 ;; token complete and was processed
@@ -170,11 +200,12 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	    ;; received extra bytes, memmove and update offsets
 	    (dotimes (i extra-bytes)
 	      (setf (aref buf i) (aref buf (+ (- offset extra-bytes) i))))
-	    (setf offset extra-bytes))
+	    (setf offset extra-bytes msglen 0))
 	   (t
-	    (setf offset 0)))
+	    (setf offset 0 msglen 0)))
 	 (when (eq token nil)
 	   ;; token=t implies context complete
+	   (format t "INIT-CLIENT-STREAM DONE msglen=~A nbytes=~A~%" msglen offset)
 	   (setf done t)))))))
 
 (defun make-client-stream (base-stream hostname &key ignore-certificates-p)
