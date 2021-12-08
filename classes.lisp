@@ -109,7 +109,7 @@ FIND-SYSTEM-CERTIFICATE. If null, a temporary self signed certificate will be cr
 		(schannel-hcxt cxt) hcxt)
 	  (values tok extra-bytes nil)))))
     (:continue
-     (multiple-value-bind (tok extra-bytes attrs incomplete-p)
+     (multiple-value-bind (tok extra-bytes attrs incomplete-p continue-p)
 	 (accept-security-context-continue (schannel-hcred cxt) (schannel-hcxt cxt)
 					   token (schannel-attrs cxt)
 					   start (or end (length token)))
@@ -117,8 +117,9 @@ FIND-SYSTEM-CERTIFICATE. If null, a temporary self signed certificate will be cr
 	 (incomplete-p
 	  (values nil nil t))
 	 (t 
-	  (setf (schannel-attrs cxt) attrs
-		(schannel-state cxt) :complete)
+	  (setf (schannel-attrs cxt) attrs)
+	  (unless continue-p
+	    (setf (schannel-state cxt) :complete))
 	  (values tok extra-bytes nil)))))))
 
 

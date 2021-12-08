@@ -90,7 +90,7 @@ Host: ~A
 
 ;; -----------------------------------
 
-(defparameter *http-response* nil)
+(defparameter *http-response* "hello")
 
 (defun test-server (&key (port 8000) certificate)
   (fsocket:with-tcp-socket (fd port)
@@ -106,3 +106,16 @@ Host: ~A
   nil)
 
 
+(defun test-server-usocket (&key (port 8000) certificate)
+  (usocket:with-server-socket (s (usocket:socket-listen "0.0.0.0" port
+							:reuse-address t
+							:element-type '(unsigned-byte 8)))
+    (usocket:with-connected-socket (conn (usocket:socket-accept s :element-type '(unsigned-byte 8)))
+      (format t ";; accepted connection~%")
+      (let* ((conn-stream (usocket:socket-stream conn))
+	     (conn-tls (schannel:make-server-stream conn-stream :certificate certificate))
+	     (buf (make-array 1024 :element-type '(unsigned-byte 8))))
+	(format t ";; received ~A bytes~%" (read-sequence buf conn-tls :start 0 :end 256))
+	(write-sequence (babel:string-to-octets *http-response*) conn-tls)
+	(force-output conn-tls)
+	(close conn-tls)))))

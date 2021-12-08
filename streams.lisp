@@ -158,7 +158,7 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
        (msglen 0)
        (done nil))
       (done)
-    (let ((n (read-sequence buf base-stream :start offset :end (if (zerop msglen) 5 (+ msglen 5)))))
+    (let ((n (read-sequence buf base-stream :start offset :end (+ msglen 5))))
       (when (= n offset)
 	(error "init-client-stream unexpected end of file"))
       (setf offset n))
@@ -220,12 +220,18 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
   ())
 
 
+;; TODO: support parsing TLS header msglen, same as with client
+;; This would allow using usocket for hunchentoot instead of fsocket 
 (defun recv-server-context-token (cxt stream buf)
   (do ((offset 0)
+       (msglen 0)
        (donetok nil))
       (donetok donetok)
-    (let ((n (read-sequence buf stream :start offset)))
+    (let ((n (read-sequence buf stream :start offset :end (+ msglen 5))))
       (when (= n offset) (error "end of file"))
+      (when (zerop msglen)
+	(setf msglen (logior (ash (aref buf (+ offset 3)) 8)
+			     (aref buf (+ offset 4)))))
       (setf offset n)
       (multiple-value-bind (token extra-bytes incomplete-p) (accept-server-context cxt buf 0 offset)
 	(cond
@@ -234,8 +240,9 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	   (when extra-bytes
 	     (dotimes (i extra-bytes)
 	       (setf (aref buf i) (aref buf (+ (- offset extra-bytes) i)))))
-	   (setf offset extra-bytes))
-	  (t 
+	   (setf offset (or extra-bytes 0)
+		 msglen 0))
+	  (t
 	   (setf donetok (or token t))))))))
 
 (defun make-server-stream (base-stream &key certificate)
@@ -245,12 +252,14 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 			    (free-schannel-context cxt))))
 
       (let ((buf (make-array (* 32 1024) :element-type '(unsigned-byte 8))))
-	;; two rounds of hand shaking 
-	(let ((tok (recv-server-context-token cxt base-stream buf)))
-	  (write-sequence tok base-stream))
+	;; keep handshaking until context is complete
+	(do ()
+	    ((eq (schannel-state cxt) :complete))
 	
-	(let ((tok (recv-server-context-token cxt base-stream buf)))
-	  (write-sequence tok base-stream)))
+	  ;; round of hand shaking
+	  (let ((tok (recv-server-context-token cxt base-stream buf)))
+	    (write-sequence tok base-stream)
+	    (force-output base-stream))))
       
       (make-instance 'server-stream :stream base-stream :cxt cxt))))
 				     

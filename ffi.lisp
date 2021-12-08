@@ -962,6 +962,19 @@
 	(t (win-error sts))))))
 	    
 
+;; SECURITY_STATUS SEC_ENTRY CompleteAuthToken(
+;;   [in] PCtxtHandle    phContext,
+;;   [in] PSecBufferDesc pToken
+;;   );
+(defcfun (%complete-auth-token "CompleteAuthToken" :convention :stdcall) :uint32
+  (pcxt :pointer)
+  (pbuf :pointer))
+(defun complete-auth-token (phcxt psecbufdesc)
+  (let ((sts (%complete-auth-token phcxt psecbufdesc)))
+    (if (zerop sts)
+	nil
+	(win-error sts))))
+
 (defun accept-security-context-continue (hcred hcxt token cxtattr token-start token-end)
   (with-foreign-objects ((phcred '(:struct sec-handle))
 			 (phcxt '(:struct sec-handle))
@@ -1000,7 +1013,8 @@
 					 pcxtattr
 					 (null-pointer))))
       (cond
-	((= sts 0)
+	((or (= sts 0)
+	     (= sts +continue-needed+))
 	 (let ((tok nil)
 	       (extra-bytes nil))
 	   ;; look for extra bytes in input buffer 
@@ -1025,9 +1039,17 @@
 	   (free-context-buffer (foreign-slot-value osecbufs 
 						    '(:struct sec-buffer)
 						    'buffer))
-	   (values tok extra-bytes (mem-aref pcxtattr :uint32) nil)))
+	   (values tok extra-bytes (mem-aref pcxtattr :uint32) nil (= sts +continue-needed+))))
 	((= sts +incomplete-message+)
-	 (values nil nil nil t))
+	 (values nil nil nil t nil))
+	((= sts +complete-needed+)
+	 ;; complete the context, need to call CompleteAuthToken
+	 (complete-auth-token phcxt osecbufdesc)
+	 ;; free the allocate token buffer 
+	 (free-context-buffer (foreign-slot-value osecbufs 
+						  '(:struct sec-buffer)
+						  'buffer))	 
+	 (values nil nil (mem-aref pcxtattr :uint32) nil nil))
 	(t (win-error sts))))))
 
 
