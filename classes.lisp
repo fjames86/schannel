@@ -85,12 +85,13 @@ Returns values token incomplete-p
 
 
 (defclass server-context (schannel-context)
-  ())
+  ((client-auth-p :initarg :client-auth-p :initform nil :reader server-context-client-auth-p)))
 
-(defun make-server-context (&key certificate)
+(defun make-server-context (&key certificate client-auth-p)
   "Make a server context. 
 HCERT ::= certificate handle, string or null. If string, names a certificate that can be acquired using 
 FIND-SYSTEM-CERTIFICATE. If null, a temporary self signed certificate will be created.
+CLIENT-AUTH-P ::= if true then the client MUST provide a certificate when negotiating connection. 
 "
   (let ((hc (cond
 	      ((cffi:pointerp certificate) certificate)
@@ -100,7 +101,8 @@ FIND-SYSTEM-CERTIFICATE. If null, a temporary self signed certificate will be cr
 		 h))
 	      (t (create-self-signed-certificate)))))
     (unwind-protect (make-instance 'server-context
-				   :hcred (acquire-credentials-handle :serverp t :hcert hc))
+				   :hcred (acquire-credentials-handle :serverp t :hcert hc)
+				   :client-auth-p client-auth-p)
       (unless (cffi:pointerp certificate)
 	(free-certificate-context hc)))))
 
@@ -109,7 +111,7 @@ FIND-SYSTEM-CERTIFICATE. If null, a temporary self signed certificate will be cr
   (ecase (schannel-state cxt)
     (:init
      (multiple-value-bind (hcxt tok extra-bytes attrs incomplete-p)
-	 (accept-security-context-init (schannel-hcred cxt) token start (or end (length token)))
+	 (accept-security-context-init (schannel-hcred cxt) token start (or end (length token)) :client-auth-p (server-context-client-auth-p cxt))
        (cond
 	 (incomplete-p
 	  (values nil nil t))

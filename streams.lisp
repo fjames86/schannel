@@ -246,8 +246,8 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	  (t
 	   (setf donetok (or token t))))))))
 
-(defun make-server-stream (base-stream &key certificate)
-  (let ((cxt (make-server-context :certificate certificate)))
+(defun make-server-stream (base-stream &key certificate client-auth-p)
+  (let ((cxt (make-server-context :certificate certificate :client-auth-p client-auth-p)))
     (handler-bind ((error (lambda (e)
 			    (declare (ignore e))
 			    (free-schannel-context cxt))))

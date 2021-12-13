@@ -183,3 +183,5 @@
 (defconstant +CERT-STORE-CREATE-NEW-FLAG+                      #x00002000)
 (defconstant +CERT-STORE-MAXIMUM-ALLOWED-FLAG+                 #x00001000)
 
+(defconstant +x509-asn-encoding+ #x1)
+(defconstant +pkcs-7-asn-encoding+ #x10000)

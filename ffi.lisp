@@ -891,7 +891,7 @@
 	  +asc-req-sequence-detect+
 	  +asc-req-replay-detect+))
 
-(defun accept-security-context-init (hcred token token-start token-end)
+(defun accept-security-context-init (hcred token token-start token-end &key client-auth-p)
   (with-foreign-objects ((phcred '(:struct sec-handle))
 			 (phcxt '(:struct sec-handle))
 			 (isecbufdesc '(:struct sec-buffer-desc))
@@ -921,7 +921,8 @@
     (let ((sts (%accept-security-context phcred
 					 (null-pointer)
 					 isecbufdesc
-					 +default-asc-req-flags+
+					 (logior +default-asc-req-flags+
+						 (if client-auth-p +asc-req-mutual-auth+ 0))
 					 0
 					 phcxt
 					 osecbufdesc
@@ -1077,7 +1078,35 @@
 	    :max-message (mem-aref buf :uint32 2)
 	    :max-buffers (mem-aref buf :uint32 3)
 	    :block-size (mem-aref buf :uint32 4)))))
-	    
+
+(defstruct certificate-info
+  name 
+  encoding-type 
+  encoded)
+
+(defun query-remote-certificate (hcxt)
+  (with-foreign-objects ((phcxt '(:struct sec-handle))
+			 (buf :pointer))
+    (setf (mem-aref phcxt '(:struct sec-handle)) hcxt)
+    (let ((sts (%query-context-attributes phcxt
+					  #x53 ;; SECPKG_ATTR_REMOTE_CERT_CONTEXT
+					  buf)))
+      (unless (= sts 0) (win-error sts))
+      (let* ((pcert (mem-aref buf :pointer))
+	     (pinfo (foreign-slot-value pcert '(:struct cert-context) 'info))
+	     (psubject (foreign-slot-pointer pinfo '(:struct cert-info) 'subject))
+	     (count (foreign-slot-value pcert '(:struct cert-context) 'cencoded))
+	     (encoded (foreign-slot-value pcert '(:struct cert-context) 'encoded))
+	     (encoded-buf (make-array count :element-type '(unsigned-byte 8)))
+	     (encoding-type (foreign-slot-value pcert '(:struct cert-context) 'encoding-type)))
+	(dotimes (i count)
+	  (setf (aref encoded-buf i) (mem-aref encoded :uint8 i)))
+	(make-certificate-info :name (cert-name-to-string psubject)
+			       :encoding-type (cond 
+						((= encoding-type +x509-asn-encoding+ ) :x509-asn-encoding)
+						((= encoding-type +pkcs-7-asn-encoding+) :pkcs-7-asn-encoding)
+						(t (error (format nil "Unknown encoding type ~A" encoding-type))))
+			       :encoded encoded-buf)))))
 
 ;; -------------- not sure if we need these functions ----------------
 
@@ -1275,4 +1304,20 @@ bend is buffer end index and extra-start is starting index of first extra byte."
       (unless (= sts 0) (win-error sts))))
   nil)
 
+
+;; KSECDDDECLSPEC SECURITY_STATUS SEC_ENTRY QuerySecurityContextToken(
+;;   [in]  PCtxtHandle phContext,
+;;   [out] void        **Token
+;; );
+(defcfun (%query-security-context-token "QuerySecurityContextToken" :convention :stdcall)
+    :uint32
+  (pcxt :pointer)
+  (tok :pointer))
+(defun query-security-context-token (cxt)
+  (with-foreign-objects ((pcxt '(:struct sec-handle))
+			 (ptok :pointer))
+    (setf (mem-aref pcxt '(:struct sec-handle)) cxt)
+    (let ((sts (%query-security-context-token pcxt ptok)))
+      (unless (= sts 0) (win-error sts))
+      (mem-aref ptok :pointer))))
 
