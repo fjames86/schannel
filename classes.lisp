@@ -33,7 +33,7 @@
 				   :hostname hostname
 				   :hcred (acquire-credentials-handle :ignore-certificates-p ignore-certificates-p
 								      :hcert hc))
-      (unless (cffi:pointerp client-certificate)
+      (unless (or (null hc) (cffi:pointerp client-certificate))
 	(free-certificate-context hc)))))
 
 
