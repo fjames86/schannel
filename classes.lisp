@@ -22,10 +22,20 @@
 (defclass client-context (schannel-context)
   ((hostname :initarg :hostname :reader client-context-hostname)))
 
-(defun make-client-context (hostname &key ignore-certificates-p)
-  (make-instance 'client-context
-		 :hostname hostname
-		 :hcred (acquire-credentials-handle :ignore-certificates-p ignore-certificates-p)))
+(defun make-client-context (hostname &key ignore-certificates-p client-certificate)
+  (let ((hc (cond
+	      ((cffi:pointerp client-certificate) client-certificate)
+	      ((stringp client-certificate)
+	       (let ((h (find-system-certificate client-certificate)))
+		 (unless h (error "Unable to find client certificate ~S" client-certificate))
+		 h)))))
+    (unwind-protect (make-instance 'client-context
+				   :hostname hostname
+				   :hcred (acquire-credentials-handle :ignore-certificates-p ignore-certificates-p
+								      :hcert hc))
+      (unless (cffi:pointerp client-certificate)
+	(free-certificate-context hc)))))
+
 
 (defun initialize-client-context (cxt &optional token (start 0) end)
   "Initialize a client context. 
@@ -66,8 +76,8 @@ Returns values token incomplete-p
 	  (setf (schannel-attrs cxt) attrs)
 	  (values tok extra-bytes nil)))))))
 		
-(defmacro with-client-context ((var hostname &key ignore-certificates-p) &body body)
-  `(let ((,var (make-client-context ,hostname :ignore-certificates-p ,ignore-certificates-p)))
+(defmacro with-client-context ((var hostname &key ignore-certificates-p client-certificate) &body body)
+  `(let ((,var (make-client-context ,hostname :ignore-certificates-p ,ignore-certificates-p :client-certificate ,client-certificate)))
      (unwind-protect (progn ,@body)
        (free-schannel-context ,var))))
 

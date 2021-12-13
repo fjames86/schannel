@@ -622,7 +622,8 @@
 	      (when ignore-certificates-p (setf flags (logior flags #x8))) ;; SCH_CRED_MANUAL_CRED_VALIDATION 
 	      flags))
       (when serverp
-	(unless hcert (error "hcert certificate context required for servers"))
+	(unless hcert (error "hcert certificate context required for servers")))
+      (when hcert 
 	(setf (foreign-slot-value credp '(:struct schannel-cred) 'ccreds)
 	      1
 	      (foreign-slot-value credp '(:struct schannel-cred) 'creds)

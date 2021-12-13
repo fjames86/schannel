@@ -195,10 +195,11 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	   ;; token=t implies context complete
 	   (setf done t)))))))
 
-(defun make-client-stream (base-stream hostname &key ignore-certificates-p)
+(defun make-client-stream (base-stream hostname &key ignore-certificates-p client-certificate)
   (let ((cxt (make-client-context
 				     hostname
-				     :ignore-certificates-p ignore-certificates-p)))
+				     :ignore-certificates-p ignore-certificates-p
+				     :client-certificate client-certificate)))
     (handler-bind ((error (lambda (e)
 			    (declare (ignore e))
 			    (free-schannel-context cxt))))
