@@ -14,9 +14,11 @@ is called `SChannel`. This library provides a set of CFFI bindings to these APIs
 to simplify things.
 
 ## 2. Usage
-See example in test-socket.lisp. This requires `fsocket` and `dragons`.
+The library exposes functions which wrap the underlying SChannel APIs at at a low level. These can be used
+in a way that follows quite closely any examples from MSDN written in C. 
 
-## 2.1 Clients
+E.g. for a client you might write something like this:
+
 ```
 (with-client-context (cxt "www.google.com")
   (let ((token (initialize-client-context cxt)))
@@ -37,35 +39,30 @@ See example in test-socket.lisp. This requires `fsocket` and `dragons`.
     ;; do something with pcount bytes of plaintext
     ))    
 ```
-## 2.2 Servers
-Not yet supported.
 
-## 3. Notes
+## 2.1 Streams
+For more practical purposes a gray streams interface is provided `make-client-stream` and `make-server-stream`.
+These take as inputs an underlying stream (i.e. a networking stream). The initializer functions handle
+initial context negotiation. Subsequent reads and writes are passed through SChannel encryption/decryption routines. 
 
-## 3.1 Streams
-There is a trivial-gray-streams interface.
+## 2.2 HTTP client 
+See my fork of `drakma`. On Windows it replaces uses of CL+SSL with SChannel.
 
-There is a technical problem when writing a streams interface for schannel. The underlying windows API requires
-us to repeatedly read from the base stream, passing the buffer in to schannel until enough bytes have been read.
-This requires the underlying read operation to support short reads, but unfortunately Common Lisp's `READ-SEQUENCE` does not support short reads except in the case of end-of-file. For us, this means usocket's TCP streams cannot
-be used. To work around this problem, you have to use fsocket's TCP streams; this slightly breaks conformity by
-allowing `READ-SEQUENCE` to return short reads, but it does allow us to get something working.
+## 2.3 HTTP server
+See my fork of `hunchentoot`. On Windows it replaces uses of CL+SSL with SChannel.
 
-## 3.2 drakma
-For an example program which uses schannel, see my patched version of drakma. This conditionally compiles to
-use schannel on windows rather than CL+SSL. 
+## 2.4 Client certificates
+When a client connects to a server, the server may request the client provide a certificate (e.g. for authentication purposes).
+Pass the `CLIENT-CERTIFICATE` parameter to `MAKE-CLIENT-STREAM` to do this.
 
-## 3.3  TODO
- - still a work in progress, API liable to change.
- - support client certificates
- - CL+SSL compatible API? - Not a good idea. CL+SSL is explicitly an OpenSSL binding, so it exposes
- several things that don't make sense for schannel. It is better for users to conditionally compile schannel on
- windows or CL+SSL otherwise.
- - write something non-trivial to check it has a sane API - Done, see patched version of drakma.
- - stream classes
- - renegotiate context
- - properly handle shutdowns ?
- - apply control tokens e.g. alerts
+To make a server which instructs clients to provide certificates, pass `:REQUIRE-CLIENT-CERTIFICATE t` parameter to `MAKE-SERVER-STREAM`.
+
+## 2.5 Certificates
+SChannel does not handle certificates directly as files, as is done by e.g. CL+SSL (OpenSSL). Instead, certificates
+are installed in a system wide repository and are referenced by name.
+Certificates are managed using Windows system tools (e.g. certmgr or powershell).
+
+## 3. TODO 
 
 ## 4. Notes
 ## 4.1 How to create and install a self signed certificate.

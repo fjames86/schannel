@@ -891,7 +891,7 @@
 	  +asc-req-sequence-detect+
 	  +asc-req-replay-detect+))
 
-(defun accept-security-context-init (hcred token token-start token-end &key client-auth-p)
+(defun accept-security-context-init (hcred token token-start token-end &key require-client-certificate)
   (with-foreign-objects ((phcred '(:struct sec-handle))
 			 (phcxt '(:struct sec-handle))
 			 (isecbufdesc '(:struct sec-buffer-desc))
@@ -922,7 +922,7 @@
 					 (null-pointer)
 					 isecbufdesc
 					 (logior +default-asc-req-flags+
-						 (if client-auth-p +asc-req-mutual-auth+ 0))
+						 (if require-client-certificate +asc-req-mutual-auth+ 0))
 					 0
 					 phcxt
 					 osecbufdesc

@@ -196,6 +196,12 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	   (setf done t)))))))
 
 (defun make-client-stream (base-stream hostname &key ignore-certificates-p client-certificate)
+  "Make a client stream from the base stream.
+BASE-STREAM ::= underlying networking stream.
+HOSTNAME ::= target host that we are connecting to.
+IGNORE-CERTIFICATES-P ::= if true, then the server certificate is not validated.
+CLIENT-CERTIFICATE ::= if non-nil is a string naming a certificate that can be found in the certificate store.
+"
   (let ((cxt (make-client-context
 				     hostname
 				     :ignore-certificates-p ignore-certificates-p
@@ -246,8 +252,14 @@ offets to point to end of plaintext and remaining undecrypted bytes from next me
 	  (t
 	   (setf donetok (or token t))))))))
 
-(defun make-server-stream (base-stream &key certificate client-auth-p)
-  (let ((cxt (make-server-context :certificate certificate :client-auth-p client-auth-p)))
+(defun make-server-stream (base-stream &key certificate require-client-certificate)
+  "Make a server stream from the base stream. 
+BASE-STREAM ::= underlying networking stream.
+CERTIFICATE ::= server certificate to use. Either a string, naming a certificate in the certificate store
+or nil in which case a temporary self-signed certificate is generated.
+REQUIRE-CLIENT-CERTIFICATE ::= if true then clients are required to provide certificates.
+"
+  (let ((cxt (make-server-context :certificate certificate :require-client-certificate require-client-certificate)))
     (handler-bind ((error (lambda (e)
 			    (declare (ignore e))
 			    (free-schannel-context cxt))))
